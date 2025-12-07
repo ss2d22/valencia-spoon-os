@@ -135,3 +135,190 @@ export async function verifyNeoTransaction(
 export function getAudioStreamUrl(sessionId: string): string {
   return `${API_BASE}/api/tribunal/${sessionId}/audio`;
 }
+
+// Interactive Tribunal API
+
+export interface InteractiveSession {
+  session_id: string;
+  paper_title: string;
+  analyses: Record<string, { severity: string }>;
+  opening_statements: Array<{
+    agent: string;
+    agent_key: string;
+    severity: string;
+    statement: string;
+  }>;
+}
+
+export interface AgentResponse {
+  agent: string;
+  agent_key: string;
+  response: string;
+}
+
+export interface SendMessageResponse {
+  responses: AgentResponse[];
+  addressed_agents: string[];
+}
+
+export interface InteractiveVerdict {
+  verdict: {
+    summary: string;
+    score: number;
+    severities: string[];
+    total_concerns: number;
+    critical_concerns: number;
+    debate_rounds: number;
+  };
+  score: number;
+  critical_issues: Array<{
+    title: string;
+    severity: string;
+    evidence: string;
+  }>;
+}
+
+export async function startInteractiveSession(
+  text: string,
+  title?: string
+): Promise<InteractiveSession> {
+  return fetchAPI("/api/interactive/start", {
+    method: "POST",
+    body: JSON.stringify({ text, title }),
+  });
+}
+
+export async function startInteractiveSessionPdf(
+  file: File
+): Promise<InteractiveSession> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/api/interactive/start-pdf`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Upload failed" }));
+    throw new Error(error.detail);
+  }
+
+  return response.json();
+}
+
+export async function sendInteractiveMessage(
+  sessionId: string,
+  message: string,
+  interrupt = false
+): Promise<SendMessageResponse> {
+  return fetchAPI(`/api/interactive/${sessionId}/message`, {
+    method: "POST",
+    body: JSON.stringify({ message, interrupt }),
+  });
+}
+
+export async function interruptSpeaker(
+  sessionId: string
+): Promise<{ status: string; agent: string | null }> {
+  return fetchAPI(`/api/interactive/${sessionId}/interrupt`, {
+    method: "POST",
+  });
+}
+
+export async function requestInteractiveVerdict(
+  sessionId: string
+): Promise<InteractiveVerdict> {
+  return fetchAPI(`/api/interactive/${sessionId}/request-verdict`, {
+    method: "POST",
+  });
+}
+
+// Voice API
+
+export interface VoiceAgentResponse {
+  agent: string;
+  agent_key: string;
+  text: string;
+  audio_base64: string | null;
+}
+
+export interface VoiceMessageResponse {
+  user_text: string;
+  responses: VoiceAgentResponse[];
+  error?: string;
+}
+
+export async function transcribeAudio(
+  audioBase64: string,
+  language = "en"
+): Promise<{ text: string; language: string }> {
+  return fetchAPI("/api/voice/transcribe", {
+    method: "POST",
+    body: JSON.stringify({ audio_base64: audioBase64, language }),
+  });
+}
+
+export async function synthesizeSpeech(
+  text: string,
+  agent = "Narrator",
+  intensity = 0.5
+): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/api/voice/synthesize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, agent, intensity }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Synthesis failed" }));
+    throw new Error(error.detail);
+  }
+
+  return response.blob();
+}
+
+export async function sendVoiceMessage(
+  sessionId: string,
+  audioBase64: string,
+  language = "en"
+): Promise<VoiceMessageResponse> {
+  return fetchAPI("/api/voice/voice-message", {
+    method: "POST",
+    body: JSON.stringify({
+      session_id: sessionId,
+      audio_base64: audioBase64,
+      language,
+    }),
+  });
+}
+
+export function getVoiceWebSocketUrl(sessionId: string): string {
+  const wsBase = API_BASE.replace(/^http/, "ws");
+  return `${wsBase}/api/voice/ws/${sessionId}`;
+}
+
+// Helper to convert audio blob to base64
+export async function audioToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      // Remove data URL prefix (e.g., "data:audio/webm;base64,")
+      const base64Data = base64.split(",")[1];
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Helper to convert base64 to audio blob
+export function base64ToAudioBlob(base64: string, mimeType = "audio/mpeg"): Blob {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
+}

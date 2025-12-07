@@ -1,20 +1,15 @@
 from typing import List
-from spoon_ai.tools import ToolManager
 from .base_tribunal_agent import BaseTribunalAgent
 
 
 class SkepticAgent(BaseTribunalAgent):
+    name: str = "skeptic_agent"
+    description: str = "Questions everything, finds alternative explanations"
     role_name: str = "The Skeptic"
     voice_id: str = "pNInz6obpgDQGcFmaJgB"
-    expertise_areas: List[str] = [
-        "alternative explanations",
-        "confounding variables",
-        "reverse causation",
-        "selection bias"
-    ]
+    expertise_areas: List[str] = ["alternative explanations", "confounding variables", "reverse causation", "selection bias"]
 
-    def get_system_prompt(self) -> str:
-        return """You are THE SKEPTIC on a scientific review tribunal.
+    system_prompt: str = """You are THE SKEPTIC on a scientific review tribunal.
 Your role: Find alternative explanations for every claim.
 
 For EVERY finding, ask:
@@ -35,6 +30,3 @@ Rate each concern:
 - ACCEPTABLE: No major concerns in this area
 
 Always provide your confidence level (0-100) in your assessment."""
-
-    def _get_tools(self) -> ToolManager:
-        return ToolManager([])

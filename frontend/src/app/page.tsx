@@ -1,21 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PaperUploader } from "@/components/PaperUploader";
-import { submitPaper, submitText } from "@/lib/api";
 import {
   Moon,
   Sun,
   FileText,
   CheckCircle2,
   XCircle,
-  ArrowRight,
   Menu,
   X,
+  Mic,
 } from "lucide-react";
 
 const agents = [
@@ -39,12 +37,12 @@ const agents = [
 
 const features = [
   {
-    title: "Multi-Agent Analysis",
-    description: "Four specialized AI agents analyze your paper from different perspectives",
+    title: "Voice Conversation",
+    description: "Speak naturally with agents and hear their responses aloud",
   },
   {
-    title: "Voice Debate",
-    description: "Agents debate in unique voices using ElevenLabs synthesis",
+    title: "Multi-Agent Analysis",
+    description: "Four specialized AI agents analyze your paper from different perspectives",
   },
   {
     title: "Blockchain Verified",
@@ -57,12 +55,9 @@ const features = [
 ];
 
 export default function HomePage() {
-  const router = useRouter();
   const [darkMode, setDarkMode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -79,32 +74,6 @@ export default function HomePage() {
       document.documentElement.classList.remove("dark");
     }
   }, [darkMode]);
-
-  const handleSubmit = async (file: File) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await submitPaper(file);
-      router.push(`/tribunal?session=${result.session_id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit paper");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleTextSubmit = async (text: string, title?: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await submitText(text, title);
-      router.push(`/tribunal?session=${result.session_id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit paper");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -134,6 +103,13 @@ export default function HomePage() {
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   The Tribunal
+                </a>
+                <a
+                  href="/interactive"
+                  className="text-sm text-primary hover:text-primary/80 transition-colors font-medium flex items-center gap-1"
+                >
+                  <Mic className="h-4 w-4" />
+                  Live Mode
                 </a>
               </div>
             </div>
@@ -175,6 +151,13 @@ export default function HomePage() {
               >
                 The Tribunal
               </a>
+              <a
+                href="/interactive"
+                className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 font-medium"
+              >
+                <Mic className="h-4 w-4" />
+                Live Mode
+              </a>
             </div>
           </div>
         )}
@@ -193,18 +176,17 @@ export default function HomePage() {
                   AI Tribunal for Research Validation
                 </h1>
                 <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed text-pretty">
-                  Four specialized AI agents adversarially debate and critique your
-                  research paper, producing a blockchain-verified verdict with
-                  critical issues identified.
+                  Have a live voice conversation with four AI agents who adversarially
+                  debate and critique your research paper. Speak naturally, get instant feedback.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button
                     size="lg"
-                    className="bg-primary hover:bg-primary/90 hover:scale-105 transition-transform"
+                    className="bg-primary hover:bg-primary/90 hover:scale-105 transition-transform gap-2"
                     onClick={() => document.getElementById("upload")?.scrollIntoView({ behavior: "smooth" })}
                   >
-                    Submit Your Paper
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    <Mic className="w-4 h-4" />
+                    Start Voice Tribunal
                   </Button>
                   <Button
                     size="lg"
@@ -218,16 +200,7 @@ export default function HomePage() {
               </div>
 
               <div className="relative" id="upload">
-                <PaperUploader
-                  onSubmit={handleSubmit}
-                  onTextSubmit={handleTextSubmit}
-                  isLoading={isLoading}
-                />
-                {error && (
-                  <div className="mt-4 p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                    {error}
-                  </div>
-                )}
+                <PaperUploader />
               </div>
             </div>
           </div>
@@ -238,7 +211,7 @@ export default function HomePage() {
             <div className="text-center space-y-4 mb-16">
               <h2 className="text-4xl font-bold">The Tribunal</h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Four specialized agents analyze your paper from different perspectives
+                Four specialized agents analyze and debate your paper in real-time
               </p>
             </div>
 
@@ -270,7 +243,7 @@ export default function HomePage() {
             <div className="text-center space-y-4 mb-16">
               <h2 className="text-4xl font-bold">How It Works</h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                A simple process that delivers rigorous analysis
+                A natural voice conversation that delivers rigorous analysis
               </p>
             </div>
 
@@ -322,8 +295,8 @@ export default function HomePage() {
                 <h2 className="text-3xl font-bold">Adversarial Science fixes that.</h2>
                 <div className="space-y-4">
                   {[
-                    "Multiple expert perspectives catch what single reviewers miss",
-                    "AI agents never get tired or biased",
+                    "Have a real conversation with AI reviewers",
+                    "Ask follow-up questions and get instant answers",
                     "Verdicts are stored immutably on blockchain",
                   ].map((text, i) => (
                     <Card key={i} className="p-4 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1 transition-all duration-300">
@@ -342,18 +315,18 @@ export default function HomePage() {
         <section className="py-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <h2 className="text-4xl sm:text-5xl font-bold text-balance">
-              Submit your paper for tribunal review.
+              Start a live tribunal conversation.
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Get instant, objective, and immutable critique using multi-agent AI debate.
+              Upload your paper and speak directly with the AI agents. They'll analyze, debate, and answer your questions.
             </p>
             <Button
               size="lg"
-              className="bg-primary hover:bg-primary/90 hover:scale-105 transition-transform"
+              className="bg-primary hover:bg-primary/90 hover:scale-105 transition-transform gap-2"
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             >
-              Submit Your Paper
-              <ArrowRight className="w-5 h-5 ml-2" />
+              <Mic className="w-5 h-5" />
+              Start Voice Tribunal
             </Button>
           </div>
         </section>

@@ -12,7 +12,7 @@ AI tribunal that tears apart research papers. Four specialized agents debate you
    - **The Ethicist** - identifies bias and conflicts of interest
 3. Agents debate each other across 3 rounds
 4. Voice synthesis creates an audio recording of the debate
-5. Final verdict gets stored on Neo blockchain + AIOZ
+5. Final verdict gets stored on Neo blockchain + Mem0
 
 ## Quick Start
 
@@ -41,8 +41,7 @@ uvicorn src.api.main:app --reload
 - SpoonOS SDK for agent orchestration
 - ElevenLabs for voice synthesis
 - Neo N3 for immutable verdict storage
-- AIOZ for decentralized file storage
-- Mem0 for semantic search across past verdicts
+- Mem0 for verdict memory and semantic search
 - FastAPI backend
 
 ## Environment Variables
@@ -52,9 +51,6 @@ ANTHROPIC_API_KEY=
 ELEVENLABS_API_KEY=
 NEO_PRIVATE_KEY=
 VERDICT_CONTRACT_HASH=
-AWS_ACCESS_KEY=
-AWS_SECRET_KEY=
-BUCKET_NAME=
 MEM0_API_KEY=
 ```
 

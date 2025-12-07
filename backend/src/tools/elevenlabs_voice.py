@@ -1,26 +1,147 @@
 import asyncio
 import os
-from typing import List, Dict, Any
+import io
+from typing import List, Dict, Any, Optional
 
 from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
 from spoon_ai.tools.base import BaseTool
+from pydantic import PrivateAttr
 
 
-class TribunalVoiceSynthesizer:
-    VOICE_MAP = {
-        "The Skeptic": "pNInz6obpgDQGcFmaJgB",
-        "The Statistician": "21m00Tcm4TlvDq8ikWAM",
-        "The Methodologist": "EXAVITQu4vr4xnSDxMaL",
-        "The Ethicist": "ThT5KcBeYPX3keUQqHPh",
-        "Narrator": "onwK4e9ZLuTAKqWW03F9",
-    }
+class TribunalVoiceService:
+    """Combined TTS and STT service for the tribunal using ElevenLabs."""
 
     def __init__(self):
         api_key = os.getenv("ELEVENLABS_API_KEY")
         if not api_key:
             raise ValueError("ELEVENLABS_API_KEY not set")
         self.client = ElevenLabs(api_key=api_key)
+
+        # Read voice IDs from environment variables with fallbacks
+        self.VOICE_MAP = {
+            "The Skeptic": os.getenv("SKEPTIC_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
+            "The Statistician": os.getenv("STATISTICIAN_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
+            "The Methodologist": os.getenv("METHODOLOGIST_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+            "The Ethicist": os.getenv("ETHICIST_VOICE_ID", "ThT5KcBeYPX3keUQqHPh"),
+            "Narrator": os.getenv("NARRATOR_VOICE_ID", "onwK4e9ZLuTAKqWW03F9"),
+        }
+
+    async def transcribe_audio(
+        self,
+        audio_data: bytes,
+        language_code: str = "en"
+    ) -> Dict[str, Any]:
+        """
+        Transcribe audio using ElevenLabs Scribe STT.
+
+        Args:
+            audio_data: Raw audio bytes (supports mp3, wav, webm, etc.)
+            language_code: Language code (e.g., "en", "es", "fr")
+
+        Returns:
+            Dict with transcript text and metadata
+        """
+        def _sync_transcribe():
+            # Create a file-like object from bytes
+            audio_file = io.BytesIO(audio_data)
+            audio_file.name = "audio.webm"  # ElevenLabs needs a filename hint
+
+            result = self.client.speech_to_text.convert(
+                file=audio_file,
+                model_id="scribe_v1",  # Standard model, good accuracy
+                language_code=language_code,
+            )
+            return result
+
+        result = await asyncio.to_thread(_sync_transcribe)
+
+        return {
+            "text": result.text if hasattr(result, 'text') else str(result),
+            "language": language_code,
+        }
+
+    async def synthesize_statement(
+        self,
+        agent_name: str,
+        text: str,
+        emotion_intensity: float = 0.5
+    ) -> bytes:
+        """Synthesize speech for an agent's statement."""
+        voice_id = self.VOICE_MAP.get(agent_name, self.VOICE_MAP["Narrator"])
+        stability = max(0.3, 1.0 - emotion_intensity * 0.5)
+
+        def _sync_convert():
+            response = self.client.text_to_speech.convert(
+                voice_id=voice_id,
+                text=text,
+                model_id="eleven_turbo_v2_5",
+                output_format="mp3_44100_128",
+                voice_settings=VoiceSettings(
+                    stability=stability,
+                    similarity_boost=0.8,
+                    style=emotion_intensity * 0.5,
+                    use_speaker_boost=True,
+                    speed=1.0
+                )
+            )
+            return b"".join(chunk for chunk in response if chunk)
+
+        return await asyncio.to_thread(_sync_convert)
+
+    async def synthesize_streaming(
+        self,
+        agent_name: str,
+        text: str,
+        emotion_intensity: float = 0.5
+    ):
+        """
+        Stream TTS audio chunks for lower latency.
+        Yields audio chunks as they're generated.
+        """
+        voice_id = self.VOICE_MAP.get(agent_name, self.VOICE_MAP["Narrator"])
+        stability = max(0.3, 1.0 - emotion_intensity * 0.5)
+
+        def _sync_stream():
+            return self.client.text_to_speech.convert(
+                voice_id=voice_id,
+                text=text,
+                model_id="eleven_turbo_v2_5",
+                output_format="mp3_44100_128",
+                voice_settings=VoiceSettings(
+                    stability=stability,
+                    similarity_boost=0.8,
+                    style=emotion_intensity * 0.5,
+                    use_speaker_boost=True,
+                    speed=1.0
+                )
+            )
+
+        # Get the generator in a thread-safe way
+        generator = await asyncio.to_thread(_sync_stream)
+
+        # Yield chunks
+        for chunk in generator:
+            if chunk:
+                yield chunk
+
+
+# Keep backward compatibility
+class TribunalVoiceSynthesizer:
+    def __init__(self):
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise ValueError("ELEVENLABS_API_KEY not set")
+        self.client = ElevenLabs(api_key=api_key)
+
+        # Read voice IDs from environment variables with fallbacks
+        self.VOICE_MAP = {
+            "The Skeptic": os.getenv("SKEPTIC_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
+            "The Statistician": os.getenv("STATISTICIAN_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
+            "The Methodologist": os.getenv("METHODOLOGIST_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+            "The Ethicist": os.getenv("ETHICIST_VOICE_ID", "ThT5KcBeYPX3keUQqHPh"),
+            "Narrator": os.getenv("NARRATOR_VOICE_ID", "onwK4e9ZLuTAKqWW03F9"),
+        }
 
     async def synthesize_statement(
         self,
@@ -82,9 +203,9 @@ class TribunalVoiceSynthesizer:
 
 
 class ElevenLabsVoiceTool(BaseTool):
-    name = "synthesize_voice"
-    description = "Synthesize speech for a tribunal agent"
-    parameters = {
+    name: str = "synthesize_voice"
+    description: str = "Synthesize speech for a tribunal agent"
+    parameters: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "agent_name": {
@@ -96,12 +217,12 @@ class ElevenLabsVoiceTool(BaseTool):
         },
         "required": ["agent_name", "text"]
     }
-
-    def __init__(self):
-        self.synthesizer = TribunalVoiceSynthesizer()
+    _synthesizer: TribunalVoiceSynthesizer = PrivateAttr(default=None)
 
     async def execute(self, agent_name: str, text: str, intensity: float = 0.5) -> Dict[str, Any]:
-        audio = await self.synthesizer.synthesize_statement(agent_name, text, intensity)
+        if self._synthesizer is None:
+            self._synthesizer = TribunalVoiceSynthesizer()
+        audio = await self._synthesizer.synthesize_statement(agent_name, text, intensity)
         return {
             "audio_bytes": audio,
             "agent": agent_name,
