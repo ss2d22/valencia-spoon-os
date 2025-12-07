@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import os
 from dotenv import load_dotenv
 
 env_path = Path(__file__).parent.parent.parent / ".env"
@@ -11,6 +12,14 @@ load_dotenv(env_path, override=True)
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    ALLOWED_ORIGINS.append(frontend_url.rstrip("/"))
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -40,7 +49,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
