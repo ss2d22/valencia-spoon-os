@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 import {
   BarChart3,
   TrendingUp,
@@ -19,6 +21,9 @@ import {
   RefreshCw,
   Database,
   AlertTriangle,
+  Moon,
+  Sun,
+  Globe,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -29,10 +34,17 @@ import {
 } from "@/lib/api";
 
 export default function DashboardPage() {
+  const { theme, setTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const [papers, setPapers] = useState<PaperVersionGroup[]>([]);
   const [stats, setStats] = useState<VerdictStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -92,7 +104,7 @@ export default function DashboardPage() {
               </Link>
               <div className="flex items-center gap-2">
                 <Database className="h-5 w-5 text-primary" />
-                <span className="text-xl font-bold">Verdict Dashboard</span>
+                <span className="text-xl font-bold">{t.dashboard.title}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -103,14 +115,29 @@ export default function DashboardPage() {
                 disabled={loading}
               >
                 <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-                Refresh
+                {t.dashboard.refresh}
               </Button>
               <Link href="/interactive">
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-2" />
-                  New Tribunal
+                  {t.dashboard.startTribunal}
                 </Button>
               </Link>
+              <button
+                onClick={() => setLanguage(language === "en" ? "zh" : "en")}
+                className="p-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-1 text-sm"
+              >
+                <Globe className="w-4 h-4" />
+                <span className="font-medium">{language === "en" ? "EN" : "中"}</span>
+              </button>
+              {mounted && (
+                <button
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
+                  {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -124,10 +151,10 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3 text-destructive">
                   <AlertTriangle className="h-5 w-5" />
                   <div>
-                    <p className="font-medium">Failed to load data</p>
+                    <p className="font-medium">{t.dashboard.failedToLoad}</p>
                     <p className="text-sm">{error}</p>
                     <p className="text-xs mt-1 text-muted-foreground">
-                      Make sure the backend is running and Mem0 is configured.
+                      {t.dashboard.backendHint}
                     </p>
                   </div>
                 </div>
@@ -135,12 +162,11 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Summary Stats */}
           <div className="grid md:grid-cols-4 gap-4">
             <Card className="glass-card border-slate-800/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Tribunals
+                  {t.dashboard.totalTribunals}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -157,7 +183,7 @@ export default function DashboardPage() {
             <Card className="glass-card border-slate-800/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Average Score
+                  {t.dashboard.averageScore}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -175,7 +201,7 @@ export default function DashboardPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
                   <TrendingUp className="h-4 w-4 text-green-500" />
-                  Highest Score
+                  {t.dashboard.highestScore}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -193,7 +219,7 @@ export default function DashboardPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
                   <TrendingDown className="h-4 w-4 text-red-500" />
-                  Lowest Score
+                  {t.dashboard.lowestScore}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -208,15 +234,14 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Paper Version Timeline */}
           <Card className="glass-card border-slate-800/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Papers &amp; Version History
+                {t.dashboard.papersVersionHistory}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Track paper revisions and improvements across tribunal sessions
+                {t.dashboard.trackPaperRevisions}
               </p>
             </CardHeader>
             <CardContent>
@@ -229,14 +254,14 @@ export default function DashboardPage() {
               ) : papers.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No verdicts yet</h3>
+                  <h3 className="text-lg font-medium mb-2">{t.dashboard.noVerdicts}</h3>
                   <p className="text-muted-foreground mb-4">
-                    Start a tribunal to see verdicts here. They will be stored in Mem0.
+                    {t.dashboard.startFirst}
                   </p>
                   <Link href="/interactive">
                     <Button>
                       <Plus className="h-4 w-4 mr-2" />
-                      Start First Tribunal
+                      {t.dashboard.startTribunal}
                     </Button>
                   </Link>
                 </div>
@@ -256,15 +281,15 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Users className="h-4 w-4" />
-                                {paper.version_count} version{paper.version_count > 1 ? "s" : ""}
+                                {paper.version_count} {paper.version_count > 1 ? t.dashboard.versions : t.dashboard.version}
                               </span>
                               <span className="flex items-center gap-1">
-                                Best: <span className={getScoreColor(paper.best_score)}>{paper.best_score}</span>
+                                {t.dashboard.best}: <span className={getScoreColor(paper.best_score)}>{paper.best_score}</span>
                               </span>
                             </div>
                           </div>
                           <Badge variant={getScoreBadgeVariant(paper.latest_score)}>
-                            Latest: {paper.latest_score}
+                            {t.dashboard.latest}: {paper.latest_score}
                           </Badge>
                         </div>
                       </CardHeader>
@@ -313,7 +338,6 @@ export default function DashboardPage() {
                               </Card>
                             </Link>
                           ))}
-                          {/* Add revision button */}
                           <Link href="/interactive" className="block">
                             <Card
                               className={cn(
@@ -325,7 +349,7 @@ export default function DashboardPage() {
                               <CardContent className="flex flex-col items-center justify-center py-6">
                                 <Plus className="h-8 w-8 text-muted-foreground mb-2" />
                                 <span className="text-sm text-muted-foreground">
-                                  Add Revision
+                                  {t.dashboard.addRevision}
                                 </span>
                               </CardContent>
                             </Card>
@@ -339,16 +363,15 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Score Improvement Trend */}
           {papers.some((p) => p.version_count > 1) && (
             <Card className="glass-card border-slate-800/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="h-5 w-5" />
-                  Improvement Trends
+                  {t.dashboard.improvementTrends}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Papers with multiple revisions showing score changes
+                  {t.dashboard.papersWithRevisions}
                 </p>
               </CardHeader>
               <CardContent>
@@ -368,7 +391,7 @@ export default function DashboardPage() {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{paper.paper_title}</p>
                             <p className="text-sm text-muted-foreground">
-                              {paper.version_count} versions
+                              {paper.version_count} {t.dashboard.versions}
                             </p>
                           </div>
                           <div className="flex items-center gap-4">

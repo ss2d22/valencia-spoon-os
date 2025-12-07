@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Upload, FileText, X, Loader2, MessageCircle, Mic } from "lucide-react";
+import { Upload, FileText, X, Loader2, MessageCircle, Mic, Globe } from "lucide-react";
 import { startInteractiveSession, startInteractiveSessionPdf } from "@/lib/api";
+import { useLanguage } from "@/lib/i18n";
 
 interface PaperUploaderProps {
   isLoading?: boolean;
@@ -14,6 +15,7 @@ interface PaperUploaderProps {
 
 export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [textMode, setTextMode] = useState(false);
@@ -86,10 +88,10 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Mic className="h-5 w-5 text-primary" />
-          Start Live Tribunal
+          {t.uploader.title}
         </CardTitle>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload a paper and have a live voice conversation with the AI agents
+          {t.uploader.subtitle}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -104,7 +106,7 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
               setError(null);
             }}
           >
-            Upload PDF
+            {t.uploader.uploadPdf}
           </Button>
           <Button
             variant={textMode ? "default" : "outline"}
@@ -115,7 +117,7 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
               setError(null);
             }}
           >
-            Paste Text
+            {t.uploader.pasteText}
           </Button>
         </div>
 
@@ -167,10 +169,10 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
               <div className="text-center">
                 <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  Drag and drop your PDF here, or click to browse
+                  {t.uploader.dropzone}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Maximum file size: 10MB
+                  {t.uploader.maxSize}
                 </p>
               </div>
             )}
@@ -179,28 +181,45 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
           <div key="text-input" className="space-y-3">
             <input
               type="text"
-              placeholder="Paper title (optional)"
+              placeholder={t.uploader.titlePlaceholder}
               value={title || ""}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 rounded-md border bg-background text-sm"
               disabled={loading}
             />
             <textarea
-              placeholder="Paste the paper content here... (minimum 100 characters)"
+              placeholder={t.uploader.contentPlaceholder}
               value={text || ""}
               onChange={(e) => setText(e.target.value)}
               className="w-full h-48 px-3 py-2 rounded-md border bg-background text-sm resize-none"
               disabled={loading}
             />
             <p className="text-xs text-muted-foreground">
-              {text.length} / 100 minimum characters
+              {text.length} / 100 {t.uploader.minChars}
             </p>
           </div>
         )}
 
         {error && (
-          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-            {error}
+          <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+            {error.includes("Language not supported") ? (
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-destructive/20 mb-3">
+                  <Globe className="h-5 w-5 text-destructive" />
+                </div>
+                <h3 className="text-sm font-semibold text-destructive mb-1">
+                  {t.language.notSupported}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  {t.language.notSupportedDesc}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t.language.detected}: <span className="font-medium">{error.split(": ")[1]?.split(".")[0] || "Unknown"}</span>
+                </p>
+              </div>
+            ) : (
+              <p className="text-destructive text-sm">{error}</p>
+            )}
           </div>
         )}
 
@@ -213,18 +232,18 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Starting Tribunal...
+              {t.uploader.startingTribunal}
             </>
           ) : (
             <>
               <MessageCircle className="h-4 w-4" />
-              Start Live Conversation
+              {t.uploader.startConversation}
             </>
           )}
         </Button>
 
         <p className="text-xs text-center text-muted-foreground">
-          Agents will speak their analysis aloud. You can respond with your voice.
+          {t.uploader.voiceNote}
         </p>
       </CardContent>
     </Card>
