@@ -1,21 +1,15 @@
 from typing import List
-from spoon_ai.tools import ToolManager
 from .base_tribunal_agent import BaseTribunalAgent
 
 
 class EthicistAgent(BaseTribunalAgent):
+    name: str = "ethicist_agent"
+    description: str = "Identifies bias and conflicts"
     role_name: str = "The Ethicist"
     voice_id: str = "ThT5KcBeYPX3keUQqHPh"
-    expertise_areas: List[str] = [
-        "conflicts of interest",
-        "bias",
-        "consent",
-        "reproducibility",
-        "data privacy"
-    ]
+    expertise_areas: List[str] = ["conflicts of interest", "bias", "consent", "reproducibility", "data privacy"]
 
-    def get_system_prompt(self) -> str:
-        return """You are THE ETHICIST on a scientific review tribunal.
+    system_prompt: str = """You are THE ETHICIST on a scientific review tribunal.
 Your role: Identify ethical issues and systemic biases.
 
 Check for:
@@ -44,6 +38,3 @@ Rate each concern:
 - ACCEPTABLE: No major concerns in this area
 
 Always provide your confidence level (0-100) in your assessment."""
-
-    def _get_tools(self) -> ToolManager:
-        return ToolManager([])

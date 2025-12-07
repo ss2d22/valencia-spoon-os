@@ -1,23 +1,28 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Upload, FileText, X, Loader2 } from "lucide-react";
+import { Upload, FileText, X, Loader2, MessageCircle, Mic } from "lucide-react";
+import { startInteractiveSession, startInteractiveSessionPdf } from "@/lib/api";
 
 interface PaperUploaderProps {
-  onSubmit: (file: File) => Promise<void>;
-  onTextSubmit?: (text: string, title?: string) => Promise<void>;
   isLoading?: boolean;
 }
 
-export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUploaderProps) {
+export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps) {
+  const router = useRouter();
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [textMode, setTextMode] = useState(false);
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loading = isLoading || externalLoading;
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -49,10 +54,26 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
   };
 
   const handleSubmit = async () => {
-    if (textMode && onTextSubmit && text.trim()) {
-      await onTextSubmit(text, title || undefined);
-    } else if (file) {
-      await onSubmit(file);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      let session;
+
+      if (!textMode && file) {
+        session = await startInteractiveSessionPdf(file);
+      } else if (textMode && text.trim().length >= 100) {
+        session = await startInteractiveSession(text, title || undefined);
+      } else {
+        throw new Error("Please provide a PDF file or at least 100 characters of text");
+      }
+
+      localStorage.setItem("interactiveSession", JSON.stringify(session));
+      router.push("/interactive?autostart=true");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start tribunal");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -64,23 +85,35 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
     <Card className="glass-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Submit Paper for Review
+          <Mic className="h-5 w-5 text-primary" />
+          Start Live Tribunal
         </CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          Upload a paper and have a live voice conversation with the AI agents
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Button
             variant={!textMode ? "default" : "outline"}
             size="sm"
-            onClick={() => setTextMode(false)}
+            onClick={() => {
+              setTextMode(false);
+              setText("");
+              setTitle("");
+              setError(null);
+            }}
           >
             Upload PDF
           </Button>
           <Button
             variant={textMode ? "default" : "outline"}
             size="sm"
-            onClick={() => setTextMode(true)}
+            onClick={() => {
+              setTextMode(true);
+              setFile(null);
+              setError(null);
+            }}
           >
             Paste Text
           </Button>
@@ -88,6 +121,7 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
 
         {!textMode ? (
           <div
+            key="pdf-upload"
             className={cn(
               "relative border-2 border-dashed rounded-lg p-8 transition-colors",
               dragActive
@@ -105,7 +139,7 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
               accept=".pdf"
               onChange={handleFileChange}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              disabled={isLoading}
+              disabled={loading}
             />
 
             {file ? (
@@ -124,7 +158,7 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
                     e.stopPropagation();
                     clearFile();
                   }}
-                  disabled={isLoading}
+                  disabled={loading}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -142,21 +176,21 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div key="text-input" className="space-y-3">
             <input
               type="text"
               placeholder="Paper title (optional)"
-              value={title}
+              value={title || ""}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 rounded-md border bg-background text-sm"
-              disabled={isLoading}
+              disabled={loading}
             />
             <textarea
               placeholder="Paste the paper content here... (minimum 100 characters)"
-              value={text}
+              value={text || ""}
               onChange={(e) => setText(e.target.value)}
               className="w-full h-48 px-3 py-2 rounded-md border bg-background text-sm resize-none"
-              disabled={isLoading}
+              disabled={loading}
             />
             <p className="text-xs text-muted-foreground">
               {text.length} / 100 minimum characters
@@ -164,24 +198,34 @@ export function PaperUploader({ onSubmit, onTextSubmit, isLoading }: PaperUpload
           </div>
         )}
 
+        {error && (
+          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            {error}
+          </div>
+        )}
+
         <Button
-          className="w-full"
+          className="w-full gap-2"
           size="lg"
           onClick={handleSubmit}
-          disabled={isLoading || (!file && (!textMode || text.length < 100))}
+          disabled={loading || (!file && (!textMode || text.length < 100))}
         >
-          {isLoading ? (
+          {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Submitting...
+              Starting Tribunal...
             </>
           ) : (
             <>
-              <Upload className="h-4 w-4" />
-              Start Tribunal Review
+              <MessageCircle className="h-4 w-4" />
+              Start Live Conversation
             </>
           )}
         </Button>
+
+        <p className="text-xs text-center text-muted-foreground">
+          Agents will speak their analysis aloud. You can respond with your voice.
+        </p>
       </CardContent>
     </Card>
   );

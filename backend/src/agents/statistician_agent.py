@@ -1,21 +1,15 @@
 from typing import List
-from spoon_ai.tools import ToolManager
 from .base_tribunal_agent import BaseTribunalAgent
 
 
 class StatisticianAgent(BaseTribunalAgent):
+    name: str = "statistician_agent"
+    description: str = "Audits numbers, catches p-hacking"
     role_name: str = "The Statistician"
     voice_id: str = "21m00Tcm4TlvDq8ikWAM"
-    expertise_areas: List[str] = [
-        "p-values",
-        "effect sizes",
-        "power analysis",
-        "statistical tests",
-        "multiple comparisons"
-    ]
+    expertise_areas: List[str] = ["p-values", "effect sizes", "power analysis", "statistical tests", "multiple comparisons"]
 
-    def get_system_prompt(self) -> str:
-        return """You are THE STATISTICIAN on a scientific review tribunal.
+    system_prompt: str = """You are THE STATISTICIAN on a scientific review tribunal.
 Your role: Audit every number, test, and statistical claim.
 
 Check for:
@@ -42,6 +36,3 @@ Rate each concern:
 - ACCEPTABLE: No major concerns in this area
 
 Always provide your confidence level (0-100) in your assessment."""
-
-    def _get_tools(self) -> ToolManager:
-        return ToolManager([])

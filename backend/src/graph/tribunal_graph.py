@@ -11,11 +11,13 @@ from spoon_ai.graph.config import GraphConfig, ParallelGroupConfig
 from .state import TribunalState
 from .nodes import (
     parse_paper_node,
+    parallel_analysis_node,
     skeptic_analysis_node,
     statistician_analysis_node,
     methodologist_analysis_node,
     ethicist_analysis_node,
     debate_round_node,
+    debate_rounds_node,
     synthesize_verdict_node,
     generate_audio_node,
     store_verdict_node,
@@ -23,8 +25,12 @@ from .nodes import (
 
 
 def route_debate(state: TribunalState) -> str:
-    if state.get("current_round", 0) < 3:
+    current_round = state.get("current_round", 0)
+    print(f"[DEBUG] route_debate: current_round={current_round}")
+    if current_round < 3:
+        print(f"[DEBUG] route_debate: returning continue_debate")
         return "continue_debate"
+    print(f"[DEBUG] route_debate: returning to_verdict")
     return "to_verdict"
 
 
@@ -54,9 +60,9 @@ def build_tribunal_graph() -> StateGraph:
     graph.add_edge("ethicist_analysis", "debate_round")
 
     graph.add_conditional_edges(
-        source="debate_round",
-        condition=route_debate,
-        path_map={
+        "debate_round",
+        route_debate,
+        {
             "continue_debate": "debate_round",
             "to_verdict": "synthesize_verdict",
         }
@@ -84,6 +90,9 @@ def build_tribunal_graph_declarative() -> StateGraph:
 
     edges = [
         EdgeSpec("parse_paper", "skeptic_analysis"),
+        EdgeSpec("parse_paper", "statistician_analysis"),
+        EdgeSpec("parse_paper", "methodologist_analysis"),
+        EdgeSpec("parse_paper", "ethicist_analysis"),
         EdgeSpec("skeptic_analysis", "debate_round"),
         EdgeSpec("statistician_analysis", "debate_round"),
         EdgeSpec("methodologist_analysis", "debate_round"),
@@ -122,6 +131,40 @@ def build_tribunal_graph_declarative() -> StateGraph:
     return builder.build(template)
 
 
+def build_simple_tribunal_graph() -> StateGraph:
+    """
+    Simplified graph with linear flow (no loops).
+
+    Flow:
+    1. parse_paper
+    2. parallel_analysis (runs all 4 agents with asyncio.gather)
+    3. debate_rounds (runs all 3 rounds in a single node)
+    4. synthesize_verdict
+    5. generate_audio
+    6. store_verdict
+    """
+    graph = StateGraph(TribunalState)
+
+    # Add nodes
+    graph.add_node("parse_paper", parse_paper_node)
+    graph.add_node("parallel_analysis", parallel_analysis_node)
+    graph.add_node("debate_rounds", debate_rounds_node)
+    graph.add_node("synthesize_verdict", synthesize_verdict_node)
+    graph.add_node("generate_audio", generate_audio_node)
+    graph.add_node("store_verdict", store_verdict_node)
+
+    # Linear flow - no loops
+    graph.set_entry_point("parse_paper")
+    graph.add_edge("parse_paper", "parallel_analysis")
+    graph.add_edge("parallel_analysis", "debate_rounds")
+    graph.add_edge("debate_rounds", "synthesize_verdict")
+    graph.add_edge("synthesize_verdict", "generate_audio")
+    graph.add_edge("generate_audio", "store_verdict")
+    graph.add_edge("store_verdict", END)
+
+    return graph
+
+
 def get_compiled_graph():
-    graph = build_tribunal_graph()
+    graph = build_simple_tribunal_graph()
     return graph.compile()

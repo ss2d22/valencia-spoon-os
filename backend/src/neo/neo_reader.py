@@ -4,7 +4,7 @@ from ast import literal_eval
 
 from spoon_toolkits.crypto.neo import (
     GetAddressInfoTool,
-    GetTransactionByHashTool,
+    GetRawTransactionByTransactionHashTool,
     GetContractByHashTool,
     GetBlockByHeightTool,
     GetContractCountTool,
@@ -16,7 +16,7 @@ class NeoReader:
     def __init__(self, network: str = "testnet"):
         self.network = network
         self.address_tool = GetAddressInfoTool()
-        self.tx_tool = GetTransactionByHashTool()
+        self.tx_tool = GetRawTransactionByTransactionHashTool()
         self.contract_tool = GetContractByHashTool()
         self.block_tool = GetBlockByHeightTool()
         self.contract_count_tool = GetContractCountTool()

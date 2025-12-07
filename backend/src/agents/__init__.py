@@ -3,6 +3,7 @@ from .skeptic_agent import SkepticAgent
 from .statistician_agent import StatisticianAgent
 from .methodologist_agent import MethodologistAgent
 from .ethicist_agent import EthicistAgent
+from .tribunal_orchestrator import TribunalOrchestrator, orchestrator
 
 __all__ = [
     "BaseTribunalAgent",
@@ -10,4 +11,6 @@ __all__ = [
     "StatisticianAgent",
     "MethodologistAgent",
     "EthicistAgent",
+    "TribunalOrchestrator",
+    "orchestrator",
 ]

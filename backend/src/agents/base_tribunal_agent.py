@@ -1,34 +1,22 @@
-from abc import abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 import re
-from spoon_ai.agents import SpoonReactMCP
 from spoon_ai.chat import ChatBot
-from spoon_ai.tools import ToolManager
 
 
-class BaseTribunalAgent(SpoonReactMCP):
+class BaseTribunalAgent:
+    name: str = "tribunal_agent"
+    description: str = "Scientific paper review agent"
     role_name: str = "Base Agent"
     voice_id: str = ""
     expertise_areas: List[str] = []
+    system_prompt: str = ""
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self):
         self.llm = ChatBot(
             model_name="claude-sonnet-4-20250514",
             llm_provider="anthropic",
             temperature=0.3
         )
-        self.max_steps = 10
-        self.available_tools = self._get_tools()
-        self.system_prompt = self.get_system_prompt()
-
-    @abstractmethod
-    def _get_tools(self) -> ToolManager:
-        pass
-
-    @abstractmethod
-    def get_system_prompt(self) -> str:
-        pass
 
     async def analyze_paper(self, paper_text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         prompt = f"""Analyze this research paper from your perspective as {self.role_name}.
@@ -45,7 +33,8 @@ Provide your analysis with:
 3. Severity rating: FATAL_FLAW / SERIOUS_CONCERN / MINOR_ISSUE / ACCEPTABLE
 4. Overall confidence in your assessment (0-100)
 """
-        response = await self.run(prompt)
+        messages = [{"role": "user", "content": prompt}]
+        response = await self.llm.ask(messages, system_msg=self.system_prompt)
         return self._parse_analysis(response)
 
     async def respond_to_others(
@@ -71,7 +60,8 @@ Previous debate rounds:
 Respond to their points. Do you agree? Disagree?
 Keep response to 2-3 sentences for natural debate flow.
 """
-        return await self.run(prompt)
+        messages = [{"role": "user", "content": prompt}]
+        return await self.llm.ask(messages, system_msg=self.system_prompt)
 
     def _parse_analysis(self, response: str) -> Dict[str, Any]:
         severity = "UNKNOWN"

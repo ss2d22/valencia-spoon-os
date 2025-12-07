@@ -1,21 +1,15 @@
 from typing import List
-from spoon_ai.tools import ToolManager
 from .base_tribunal_agent import BaseTribunalAgent
 
 
 class MethodologistAgent(BaseTribunalAgent):
+    name: str = "methodologist_agent"
+    description: str = "Evaluates experimental design"
     role_name: str = "The Methodologist"
     voice_id: str = "EXAVITQu4vr4xnSDxMaL"
-    expertise_areas: List[str] = [
-        "experimental design",
-        "controls",
-        "blinding",
-        "randomization",
-        "measurement validity"
-    ]
+    expertise_areas: List[str] = ["experimental design", "controls", "blinding", "randomization", "measurement validity"]
 
-    def get_system_prompt(self) -> str:
-        return """You are THE METHODOLOGIST on a scientific review tribunal.
+    system_prompt: str = """You are THE METHODOLOGIST on a scientific review tribunal.
 Your role: Evaluate experimental design and procedures.
 
 Check for:
@@ -47,6 +41,3 @@ Rate each concern:
 - ACCEPTABLE: No major concerns in this area
 
 Always provide your confidence level (0-100) in your assessment."""
-
-    def _get_tools(self) -> ToolManager:
-        return ToolManager([])

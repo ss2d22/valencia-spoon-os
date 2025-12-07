@@ -22,13 +22,6 @@ interface DebatePlayerProps {
   onRoundChange?: (round: number) => void;
 }
 
-const agentColors: Record<string, string> = {
-  "The Skeptic": "bg-orange-500",
-  "The Statistician": "bg-blue-500",
-  "The Methodologist": "bg-purple-500",
-  "The Ethicist": "bg-green-500",
-};
-
 export function DebatePlayer({ audioUrl, rounds, onRoundChange }: DebatePlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -193,7 +186,7 @@ export function DebatePlayer({ audioUrl, rounds, onRoundChange }: DebatePlayerPr
                   <div
                     className={cn(
                       "w-1 rounded-full shrink-0",
-                      agentColors[statement.agent] || "bg-muted"
+                       "bg-muted"
                     )}
                   />
                   <div className="space-y-1">

@@ -1,3 +1,5 @@
-from .aioz_storage import AIOZVerdictStorage
+from .local_storage import LocalVerdictStorage
 
-__all__ = ["AIOZVerdictStorage"]
+AIOZVerdictStorage = LocalVerdictStorage
+
+__all__ = ["LocalVerdictStorage", "AIOZVerdictStorage"]

@@ -2,6 +2,12 @@ import asyncio
 import uuid
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path, override=True)
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,6 +103,10 @@ async def run_tribunal(session_id: str, paper_text: str, metadata: Dict[str, Any
         tribunal_sessions[session_id]["current_stage"] = "analyzing"
 
         result = await graph.invoke(initial_state)
+
+        print(f"[DEBUG] Graph result keys: {result.keys() if result else 'None'}")
+        print(f"[DEBUG] verdict: {result.get('verdict') if result else 'None'}")
+        print(f"[DEBUG] verdict_score: {result.get('verdict_score') if result else 'None'}")
 
         tribunal_sessions[session_id]["status"] = "completed"
         tribunal_sessions[session_id]["current_stage"] = "completed"
@@ -230,11 +240,12 @@ async def get_verdict(session_id: str):
 
     result = session.get("result", {})
 
+    verdict = result.get("verdict")
     return VerdictResponse(
         session_id=session_id,
-        verdict=result.get("verdict", {}),
-        verdict_score=result.get("verdict_score", 0),
-        critical_issues=result.get("critical_issues", []),
+        verdict=verdict if verdict is not None else {},
+        verdict_score=result.get("verdict_score", 0) or 0,
+        critical_issues=result.get("critical_issues") or [],
         neo_tx_hash=result.get("neo_tx_hash"),
         aioz_verdict_key=result.get("aioz_verdict_key"),
         aioz_audio_key=result.get("aioz_audio_key"),
@@ -322,7 +333,9 @@ async def verify_neo_transaction(tx_hash: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from .routes import tribunal, verdicts
+from .routes import tribunal, verdicts, interactive, voice
 
 app.include_router(tribunal.router, prefix="/api/tribunal", tags=["tribunal"])
 app.include_router(verdicts.router, prefix="/api/verdicts", tags=["verdicts"])
+app.include_router(interactive.router, prefix="/api/interactive", tags=["interactive"])
+app.include_router(voice.router, prefix="/api/voice", tags=["voice"])

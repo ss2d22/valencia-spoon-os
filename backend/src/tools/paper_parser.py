@@ -1,12 +1,12 @@
 import io
 from typing import Tuple, Dict, Any
 
-import PyPDF2
+from pypdf import PdfReader
 
 
 async def parse_pdf(content: bytes) -> Tuple[str, Dict[str, Any]]:
     pdf_file = io.BytesIO(content)
-    reader = PyPDF2.PdfReader(pdf_file)
+    reader = PdfReader(pdf_file)
 
     text_parts = []
     for page in reader.pages:
