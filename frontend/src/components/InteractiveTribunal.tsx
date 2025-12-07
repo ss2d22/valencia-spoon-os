@@ -300,6 +300,8 @@ export function InteractiveTribunal({
             severity: "SERIOUS_CONCERN",
             evidence: "",
           })),
+          neo_tx_hash: voiceVerdict.neo_tx_hash,
+          mem0_stored: voiceVerdict.mem0_stored,
         });
 
         // Play verdict audio if available
@@ -739,6 +741,36 @@ export function InteractiveTribunal({
               <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
                 <span>{verdict.verdict.total_concerns} concern{verdict.verdict.total_concerns !== 1 ? "s" : ""} identified</span>
                 <span>{verdict.verdict.critical_concerns} critical</span>
+              </div>
+
+              {/* Blockchain & Storage Status */}
+              <div className="flex items-center justify-between text-xs border-t pt-3 gap-4">
+                <div className="flex items-center gap-2">
+                  {verdict.mem0_stored ? (
+                    <span className="text-green-500 flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      Mem0 Stored
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full"></span>
+                      Mem0
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {verdict.neo_tx_hash ? (
+                    <span className="text-green-500 flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      Neo: {verdict.neo_tx_hash.slice(0, 10)}...
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full"></span>
+                      Neo Pending
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

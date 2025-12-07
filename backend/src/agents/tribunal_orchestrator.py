@@ -9,10 +9,13 @@ Key responsibilities:
 """
 
 import asyncio
+import logging
 from typing import Dict, Any, List, Optional, Literal
 from dataclasses import dataclass, field
 from enum import Enum
 from spoon_ai.chat import ChatBot
+
+logger = logging.getLogger(__name__)
 
 from .skeptic_agent import SkepticAgent
 from .statistician_agent import StatisticianAgent
@@ -585,7 +588,7 @@ Your verdict:"""
         # Parse the verdict
         verdict = self._parse_verdict(verdict_response)
 
-        # Store verdict
+        # Store verdict in session
         session.verdict = verdict
 
         # Record in conversation
@@ -596,7 +599,62 @@ Your verdict:"""
             timestamp=time.time()
         ))
 
+        # Store to Mem0 (long-term memory) and Neo (blockchain)
+        await self._store_verdict_to_backends(session_id, verdict, session)
+
         return verdict
+
+    async def _store_verdict_to_backends(
+        self,
+        session_id: str,
+        verdict: Dict[str, Any],
+        session: TribunalSession
+    ) -> None:
+        """Store verdict to Mem0 and Neo blockchain (best-effort, non-blocking)."""
+        paper_title = session.paper_metadata.get("title", "Untitled Paper")
+
+        # Build full verdict data for storage
+        verdict_data = {
+            "tribunal_id": session_id,
+            "paper_title": paper_title,
+            "verdict_score": verdict.get("score", 50),
+            "decision": verdict.get("decision", "UNKNOWN"),
+            "verdict": verdict,
+            "critical_issues": [
+                {"title": issue, "severity": "CONCERN"}
+                for issue in verdict.get("critical_issues", [])
+            ],
+            "debate_rounds": len([m for m in session.messages if m.participant == ParticipantType.HUMAN]),
+        }
+
+        # Store to Mem0 (best-effort)
+        try:
+            from ..memory.tribunal_memory import TribunalMemory
+            memory = TribunalMemory()
+            mem0_result = await memory.store_verdict_memory(verdict_data, paper_title)
+            logger.info(f"✅ Verdict stored to Mem0: {mem0_result}")
+            verdict["mem0_stored"] = True
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to store verdict to Mem0: {e}")
+            verdict["mem0_stored"] = False
+            verdict["mem0_error"] = str(e)
+
+        # Store to Neo blockchain (best-effort)
+        try:
+            from ..neo.neo_client import store_verdict
+            neo_tx_hash = await store_verdict(
+                paper_content=session.paper_text[:5000],  # Limit content for hashing
+                verdict_score=verdict.get("score", 50),
+                aioz_verdict_key="",  # No AIOZ for now
+                aioz_audio_key="",
+                tribunal_id=session_id
+            )
+            logger.info(f"✅ Verdict stored to Neo blockchain: {neo_tx_hash}")
+            verdict["neo_tx_hash"] = neo_tx_hash
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to store verdict to Neo: {e}")
+            verdict["neo_tx_hash"] = None
+            verdict["neo_error"] = str(e)
 
     def _parse_verdict(self, response: str) -> Dict[str, Any]:
         """Parse the verdict response into structured format."""

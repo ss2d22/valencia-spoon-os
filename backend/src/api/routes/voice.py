@@ -182,7 +182,9 @@ async def send_voice_message(request: VoiceMessageRequest):
                     "decision": verdict["decision"],
                     "score": verdict["score"],
                     "summary": verdict["summary"],
-                    "critical_issues": verdict["critical_issues"]
+                    "critical_issues": verdict["critical_issues"],
+                    "neo_tx_hash": verdict.get("neo_tx_hash"),
+                    "mem0_stored": verdict.get("mem0_stored", False),
                 }
             }
 

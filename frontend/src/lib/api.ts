@@ -176,6 +176,8 @@ export interface InteractiveVerdict {
     severity: string;
     evidence: string;
   }>;
+  neo_tx_hash?: string | null;
+  mem0_stored?: boolean;
 }
 
 export async function startInteractiveSession(
@@ -248,6 +250,8 @@ export interface VoiceVerdict {
   score: number;
   summary: string;
   critical_issues: string[];
+  neo_tx_hash?: string | null;
+  mem0_stored?: boolean;
 }
 
 export interface VoiceMessageResponse {
