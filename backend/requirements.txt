@@ -16,6 +16,7 @@ elevenlabs>=2.25.0
 
 # PDF Parsing
 pymupdf>=1.23.0
+pypdf>=4.0.0
 
 # Neo Blockchain (for WRITES - toolkit is read-only)
 neo-mamba>=0.11.0
