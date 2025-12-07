@@ -1,27 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { VerdictDisplay } from "@/components/VerdictDisplay";
-import { DebatePlayer } from "@/components/DebatePlayer";
+import { VerdictSummary } from "@/components/VerdictSummary";
+// Using mock API for UI testing - switch back to "@/lib/api" when ready for backend integration
 import {
   getVerdict,
   getDebateTranscript,
+  getAgentAnalyses,
   getAudioUrl,
   getAudioStreamUrl,
-} from "@/lib/api";
-import type { Verdict, DebateRound } from "@/lib/api";
+} from "@/lib/mockApi";
+import type { Verdict, DebateRound, AgentAnalysis } from "@/lib/api";
 import { Gavel, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function VerdictPage() {
   const params = useParams();
+  const router = useRouter();
   const sessionId = params.id as string;
 
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [debateRounds, setDebateRounds] = useState<DebateRound[]>([]);
   const [audioUrl, setAudioUrl] = useState<string>();
+  const [agents, setAgents] = useState<Record<string, AgentAnalysis>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,13 +34,20 @@ export default function VerdictPage() {
 
       try {
         setLoading(true);
-        const [verdictData, debateData] = await Promise.all([
+        const [verdictData, debateData, agentData] = await Promise.all([
           getVerdict(sessionId),
           getDebateTranscript(sessionId).catch(() => ({ debate_rounds: [], total_rounds: 0 })),
+          getAgentAnalyses(sessionId).catch(() => ({ agents: {} })),
         ]);
 
         setVerdict(verdictData);
         setDebateRounds(debateData.debate_rounds);
+
+        const agentMap: Record<string, AgentAnalysis> = {};
+        for (const [role, analysis] of Object.entries(agentData.agents)) {
+          agentMap[role] = analysis as AgentAnalysis;
+        }
+        setAgents(agentMap);
 
         try {
           const audio = await getAudioUrl(sessionId);
@@ -74,10 +84,6 @@ export default function VerdictPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
-              <div className="flex items-center gap-2">
-                <Gavel className="h-6 w-6 text-primary" />
-                <span className="text-xl font-bold">Verdict Details</span>
-              </div>
             </div>
           </div>
         </div>
@@ -99,14 +105,13 @@ export default function VerdictPage() {
           )}
 
           {verdict && (
-            <div className="grid lg:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                <VerdictDisplay verdict={verdict} />
-              </div>
-              <div className="space-y-6">
-                <DebatePlayer audioUrl={audioUrl} rounds={debateRounds} />
-              </div>
-            </div>
+            <VerdictSummary
+              verdict={verdict}
+              debateRounds={debateRounds}
+              audioUrl={audioUrl}
+              agents={agents}
+              sessionId={sessionId}
+            />
           )}
         </div>
       </main>
