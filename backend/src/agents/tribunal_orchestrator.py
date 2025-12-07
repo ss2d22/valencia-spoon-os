@@ -520,6 +520,120 @@ Your opening statement (1-2 sentences only):"""
 
         return statements
 
+    def is_verdict_request(self, message: str) -> bool:
+        """Check if the user is asking for a verdict."""
+        message_lower = message.lower()
+        verdict_keywords = [
+            "verdict", "final verdict", "give me the verdict",
+            "what's the verdict", "your verdict", "the verdict",
+            "final decision", "final ruling", "your ruling",
+            "conclude", "wrap up", "final thoughts", "sum up",
+            "summarize", "final score", "what's the score",
+            "pass or fail", "thumbs up or down", "approve or reject",
+            "ready for verdict", "make a decision", "give your decision"
+        ]
+        return any(kw in message_lower for kw in verdict_keywords)
+
+    async def generate_verdict(self, session_id: str) -> Dict[str, Any]:
+        """Generate a final verdict for the tribunal session."""
+        session = self.sessions[session_id]
+
+        # Build context from all analyses and conversation
+        analyses_summary = ""
+        for agent_type in [ParticipantType.SKEPTIC, ParticipantType.STATISTICIAN,
+                          ParticipantType.METHODOLOGIST, ParticipantType.ETHICIST]:
+            analysis = session.analyses.get(agent_type.value, {})
+            severity = analysis.get("severity", "UNKNOWN")
+            summary = analysis.get("raw_response", "No analysis")[:500]
+            analyses_summary += f"\n{self.AGENT_NAMES[agent_type]} ({severity}):\n{summary}\n"
+
+        conversation_summary = self._summarize_conversation(session, last_n=20)
+
+        verdict_prompt = f"""You are the Chief Judge of a scientific paper review tribunal.
+
+The four tribunal agents have completed their analysis:
+{analyses_summary}
+
+The discussion with the human:
+{conversation_summary}
+
+Based on ALL the evidence presented, generate a FINAL VERDICT.
+
+Your verdict must include:
+1. A clear PASS/FAIL/CONDITIONAL decision
+2. A score from 0-100 (0 = completely invalid, 100 = exemplary science)
+3. A 2-3 sentence summary of the key issues
+4. Top 3 critical issues (if any)
+
+Format your response EXACTLY as:
+DECISION: [PASS/FAIL/CONDITIONAL]
+SCORE: [0-100]
+SUMMARY: [Your 2-3 sentence summary]
+CRITICAL_ISSUES:
+1. [Issue 1]
+2. [Issue 2]
+3. [Issue 3]
+
+Your verdict:"""
+
+        messages = [{"role": "user", "content": verdict_prompt}]
+        verdict_response = await self.router.ask(
+            messages,
+            system_msg="You are an impartial scientific judge. Be firm but fair."
+        )
+
+        # Parse the verdict
+        verdict = self._parse_verdict(verdict_response)
+
+        # Store verdict
+        session.verdict = verdict
+
+        # Record in conversation
+        import time
+        session.messages.append(ConversationMessage(
+            participant=ParticipantType.HUMAN,
+            content="[Verdict Requested]",
+            timestamp=time.time()
+        ))
+
+        return verdict
+
+    def _parse_verdict(self, response: str) -> Dict[str, Any]:
+        """Parse the verdict response into structured format."""
+        lines = response.strip().split("\n")
+        verdict = {
+            "decision": "UNKNOWN",
+            "score": 50,
+            "summary": "",
+            "critical_issues": []
+        }
+
+        current_section = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith("DECISION:"):
+                verdict["decision"] = line.replace("DECISION:", "").strip()
+            elif line.startswith("SCORE:"):
+                try:
+                    score_str = line.replace("SCORE:", "").strip()
+                    verdict["score"] = int(score_str.split()[0])
+                except (ValueError, IndexError):
+                    verdict["score"] = 50
+            elif line.startswith("SUMMARY:"):
+                verdict["summary"] = line.replace("SUMMARY:", "").strip()
+                current_section = "summary"
+            elif line.startswith("CRITICAL_ISSUES:"):
+                current_section = "issues"
+            elif current_section == "issues" and line:
+                # Remove numbering like "1. " or "- "
+                issue = line.lstrip("0123456789.-) ").strip()
+                if issue:
+                    verdict["critical_issues"].append(issue)
+            elif current_section == "summary" and line and not line.startswith("CRITICAL"):
+                verdict["summary"] += " " + line
+
+        return verdict
+
     def get_session_state(self, session_id: str) -> Dict[str, Any]:
         """Get the current state of a session for the frontend."""
         session = self.sessions.get(session_id)
@@ -544,7 +658,8 @@ Your opening statement (1-2 sentences only):"""
                 }
                 for msg in session.messages
             ],
-            "current_speaker": session.current_speaker.value if session.current_speaker else None
+            "current_speaker": session.current_speaker.value if session.current_speaker else None,
+            "verdict": session.verdict
         }
 
 

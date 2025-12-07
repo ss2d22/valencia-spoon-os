@@ -59,18 +59,21 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
     setIsLoading(true);
 
     try {
-      if (file) {
+      let session;
+
+      if (!textMode && file) {
         // PDF upload -> Interactive mode
-        const session = await startInteractiveSessionPdf(file);
-        // Store session in localStorage for the interactive page
-        localStorage.setItem("interactiveSession", JSON.stringify(session));
-        router.push("/interactive?autostart=true");
-      } else if (textMode && text.trim()) {
+        session = await startInteractiveSessionPdf(file);
+      } else if (textMode && text.trim().length >= 100) {
         // Text submit -> Interactive mode
-        const session = await startInteractiveSession(text, title || undefined);
-        localStorage.setItem("interactiveSession", JSON.stringify(session));
-        router.push("/interactive?autostart=true");
+        session = await startInteractiveSession(text, title || undefined);
+      } else {
+        throw new Error("Please provide a PDF file or at least 100 characters of text");
       }
+
+      // Store session in localStorage for the interactive page
+      localStorage.setItem("interactiveSession", JSON.stringify(session));
+      router.push("/interactive?autostart=true");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start tribunal");
     } finally {
@@ -98,14 +101,23 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
           <Button
             variant={!textMode ? "default" : "outline"}
             size="sm"
-            onClick={() => setTextMode(false)}
+            onClick={() => {
+              setTextMode(false);
+              setText("");
+              setTitle("");
+              setError(null);
+            }}
           >
             Upload PDF
           </Button>
           <Button
             variant={textMode ? "default" : "outline"}
             size="sm"
-            onClick={() => setTextMode(true)}
+            onClick={() => {
+              setTextMode(true);
+              setFile(null);
+              setError(null);
+            }}
           >
             Paste Text
           </Button>
@@ -113,6 +125,7 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
 
         {!textMode ? (
           <div
+            key="pdf-upload"
             className={cn(
               "relative border-2 border-dashed rounded-lg p-8 transition-colors",
               dragActive
@@ -167,18 +180,18 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div key="text-input" className="space-y-3">
             <input
               type="text"
               placeholder="Paper title (optional)"
-              value={title}
+              value={title || ""}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2 rounded-md border bg-background text-sm"
               disabled={loading}
             />
             <textarea
               placeholder="Paste the paper content here... (minimum 100 characters)"
-              value={text}
+              value={text || ""}
               onChange={(e) => setText(e.target.value)}
               className="w-full h-48 px-3 py-2 rounded-md border bg-background text-sm resize-none"
               disabled={loading}

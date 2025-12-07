@@ -269,6 +269,48 @@ export function InteractiveTribunal({
       };
       setMessages((prev) => [...prev, userMessage]);
 
+      // Check if this is a verdict response
+      if (response.verdict) {
+        const voiceVerdict = response.verdict;
+
+        // Add verdict message
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `verdict-${Date.now()}`,
+            type: "system",
+            content: `THE TRIBUNAL HAS REACHED A VERDICT: ${voiceVerdict.decision}. Score: ${voiceVerdict.score}/100`,
+            timestamp: new Date(),
+          },
+        ]);
+
+        // Set verdict state with full details mapped to InteractiveVerdict structure
+        setVerdict({
+          score: voiceVerdict.score,
+          verdict: {
+            summary: voiceVerdict.summary,
+            score: voiceVerdict.score,
+            severities: [],
+            total_concerns: voiceVerdict.critical_issues.length,
+            critical_concerns: voiceVerdict.critical_issues.length,
+            debate_rounds: messages.filter((m) => m.type === "human").length,
+          },
+          critical_issues: voiceVerdict.critical_issues.map((issue) => ({
+            title: issue,
+            severity: "SERIOUS_CONCERN",
+            evidence: "",
+          })),
+        });
+
+        // Play verdict audio if available
+        const verdictAudio = response.responses.find((r) => r.agent_key === "verdict");
+        if (verdictAudio?.audio_base64 && voiceEnabled) {
+          const audioBlob = base64ToAudioBlob(verdictAudio.audio_base64);
+          playAudioBlob(audioBlob, "verdict");
+        }
+        return;
+      }
+
       // Add agent responses and queue audio
       const agentMessages: Message[] = response.responses.map((r, i) => ({
         id: `agent-${Date.now()}-${i}`,
@@ -629,10 +671,75 @@ export function InteractiveTribunal({
 
         <div className="border-t p-4">
           {verdict ? (
-            <div className="bg-muted/50 rounded-lg p-4 text-center">
-              <Gavel className="h-8 w-8 mx-auto mb-2 text-primary" />
-              <p className="font-semibold">{verdict.verdict.summary}</p>
-              <p className="text-2xl font-bold text-primary mt-1">{verdict.score}/100</p>
+            <div className="bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl p-6 space-y-4">
+              {/* Header with Score */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center",
+                    verdict.score >= 70 ? "bg-green-500/20" :
+                    verdict.score >= 40 ? "bg-yellow-500/20" : "bg-red-500/20"
+                  )}>
+                    <Gavel className={cn(
+                      "h-6 w-6",
+                      verdict.score >= 70 ? "text-green-500" :
+                      verdict.score >= 40 ? "text-yellow-500" : "text-red-500"
+                    )} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Tribunal Verdict</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {verdict.verdict.debate_rounds} debate round{verdict.verdict.debate_rounds !== 1 ? "s" : ""} completed
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={cn(
+                    "text-4xl font-bold",
+                    verdict.score >= 70 ? "text-green-500" :
+                    verdict.score >= 40 ? "text-yellow-500" : "text-red-500"
+                  )}>
+                    {verdict.score}
+                  </p>
+                  <p className="text-sm text-muted-foreground">/ 100</p>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-background/50 rounded-lg p-4">
+                <p className="text-sm leading-relaxed">{verdict.verdict.summary}</p>
+              </div>
+
+              {/* Critical Issues */}
+              {verdict.critical_issues && verdict.critical_issues.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    Critical Issues ({verdict.critical_issues.length})
+                  </h4>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {verdict.critical_issues.map((issue, i) => (
+                      <div key={i} className="bg-background/50 rounded-lg px-3 py-2 flex items-start gap-2">
+                        <Badge variant="outline" className={cn(
+                          "text-xs shrink-0",
+                          issue.severity === "FATAL_FLAW" ? "border-red-500 text-red-500" :
+                          issue.severity === "SERIOUS_CONCERN" ? "border-orange-500 text-orange-500" :
+                          "border-yellow-500 text-yellow-500"
+                        )}>
+                          {issue.severity.replace("_", " ")}
+                        </Badge>
+                        <span className="text-sm">{issue.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stats Row */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
+                <span>{verdict.verdict.total_concerns} concern{verdict.verdict.total_concerns !== 1 ? "s" : ""} identified</span>
+                <span>{verdict.verdict.critical_concerns} critical</span>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

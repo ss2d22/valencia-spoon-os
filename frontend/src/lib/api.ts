@@ -243,10 +243,18 @@ export interface VoiceAgentResponse {
   audio_base64: string | null;
 }
 
+export interface VoiceVerdict {
+  decision: string;
+  score: number;
+  summary: string;
+  critical_issues: string[];
+}
+
 export interface VoiceMessageResponse {
   user_text: string;
   responses: VoiceAgentResponse[];
   error?: string;
+  verdict?: VoiceVerdict;
 }
 
 export async function transcribeAudio(

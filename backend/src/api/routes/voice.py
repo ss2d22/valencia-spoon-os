@@ -126,8 +126,9 @@ async def send_voice_message(request: VoiceMessageRequest):
     Send a voice message to the tribunal.
 
     1. Transcribes the audio to text
-    2. Sends text to orchestrator
-    3. Returns agent responses with synthesized audio
+    2. Checks if it's a verdict request
+    3. Sends text to orchestrator or generates verdict
+    4. Returns agent responses with synthesized audio
 
     Returns JSON with text responses and base64-encoded audio for each.
     """
@@ -151,7 +152,41 @@ async def send_voice_message(request: VoiceMessageRequest):
         if not state:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # Process the message
+        # Check if this is a verdict request
+        if orchestrator.is_verdict_request(user_text):
+            verdict = await orchestrator.generate_verdict(request.session_id)
+
+            # Create verdict announcement
+            verdict_text = f"The tribunal has reached its verdict. {verdict['decision']}. Score: {verdict['score']} out of 100. {verdict['summary']}"
+
+            # Synthesize verdict audio
+            try:
+                audio = await voice.synthesize_statement(
+                    agent_name="Narrator",
+                    text=verdict_text,
+                    emotion_intensity=0.7
+                )
+                audio_b64 = base64.b64encode(audio).decode("utf-8")
+            except Exception:
+                audio_b64 = None
+
+            return {
+                "user_text": user_text,
+                "responses": [{
+                    "agent": "The Tribunal",
+                    "agent_key": "verdict",
+                    "text": verdict_text,
+                    "audio_base64": audio_b64
+                }],
+                "verdict": {
+                    "decision": verdict["decision"],
+                    "score": verdict["score"],
+                    "summary": verdict["summary"],
+                    "critical_issues": verdict["critical_issues"]
+                }
+            }
+
+        # Process the message normally
         responses = await orchestrator.process_human_message(
             request.session_id,
             user_text,
