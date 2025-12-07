@@ -239,6 +239,7 @@ export function getAudioStreamUrl(sessionId: string): string {
 export interface InteractiveSession {
   session_id: string;
   paper_title: string;
+  detected_language: string;
   analyses: Record<string, { severity: string }>;
   opening_statements: Array<{
     agent: string;

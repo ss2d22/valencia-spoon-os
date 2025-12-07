@@ -19,12 +19,26 @@ class TribunalVoiceService:
         self.client = ElevenLabs(api_key=api_key)
 
         # Read voice IDs from environment variables with fallbacks
+        # Support both agent keys (skeptic) and display names (The Skeptic) for flexibility
+        skeptic_voice = os.getenv("SKEPTIC_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+        statistician_voice = os.getenv("STATISTICIAN_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+        methodologist_voice = os.getenv("METHODOLOGIST_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+        ethicist_voice = os.getenv("ETHICIST_VOICE_ID", "ThT5KcBeYPX3keUQqHPh")
+        narrator_voice = os.getenv("NARRATOR_VOICE_ID", "onwK4e9ZLuTAKqWW03F9")
+
         self.VOICE_MAP = {
-            "The Skeptic": os.getenv("SKEPTIC_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
-            "The Statistician": os.getenv("STATISTICIAN_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
-            "The Methodologist": os.getenv("METHODOLOGIST_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
-            "The Ethicist": os.getenv("ETHICIST_VOICE_ID", "ThT5KcBeYPX3keUQqHPh"),
-            "Narrator": os.getenv("NARRATOR_VOICE_ID", "onwK4e9ZLuTAKqWW03F9"),
+            # Agent keys (preferred - language-independent)
+            "skeptic": skeptic_voice,
+            "statistician": statistician_voice,
+            "methodologist": methodologist_voice,
+            "ethicist": ethicist_voice,
+            "narrator": narrator_voice,
+            # Display names (backwards compatibility)
+            "The Skeptic": skeptic_voice,
+            "The Statistician": statistician_voice,
+            "The Methodologist": methodologist_voice,
+            "The Ethicist": ethicist_voice,
+            "Narrator": narrator_voice,
         }
 
     async def transcribe_audio(
@@ -135,12 +149,26 @@ class TribunalVoiceSynthesizer:
         self.client = ElevenLabs(api_key=api_key)
 
         # Read voice IDs from environment variables with fallbacks
+        # Support both agent keys (skeptic) and display names (The Skeptic) for flexibility
+        skeptic_voice = os.getenv("SKEPTIC_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+        statistician_voice = os.getenv("STATISTICIAN_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+        methodologist_voice = os.getenv("METHODOLOGIST_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+        ethicist_voice = os.getenv("ETHICIST_VOICE_ID", "ThT5KcBeYPX3keUQqHPh")
+        narrator_voice = os.getenv("NARRATOR_VOICE_ID", "onwK4e9ZLuTAKqWW03F9")
+
         self.VOICE_MAP = {
-            "The Skeptic": os.getenv("SKEPTIC_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
-            "The Statistician": os.getenv("STATISTICIAN_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
-            "The Methodologist": os.getenv("METHODOLOGIST_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
-            "The Ethicist": os.getenv("ETHICIST_VOICE_ID", "ThT5KcBeYPX3keUQqHPh"),
-            "Narrator": os.getenv("NARRATOR_VOICE_ID", "onwK4e9ZLuTAKqWW03F9"),
+            # Agent keys (preferred - language-independent)
+            "skeptic": skeptic_voice,
+            "statistician": statistician_voice,
+            "methodologist": methodologist_voice,
+            "ethicist": ethicist_voice,
+            "narrator": narrator_voice,
+            # Display names (backwards compatibility)
+            "The Skeptic": skeptic_voice,
+            "The Statistician": statistician_voice,
+            "The Methodologist": methodologist_voice,
+            "The Ethicist": ethicist_voice,
+            "Narrator": narrator_voice,
         }
 
     async def synthesize_statement(

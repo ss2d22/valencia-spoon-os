@@ -178,18 +178,15 @@ async def get_all_verdicts(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0)
 ) -> Dict[str, Any]:
-    """Get all verdicts for the dashboard."""
     try:
         memory = TribunalMemory()
         results = await memory.get_all_verdicts(limit=limit, offset=offset)
 
-        # Transform Mem0 results to frontend-friendly format
         verdicts = []
         for r in results:
             metadata = r.get("metadata", {})
             memory_text = r.get("memory", "")
 
-            # Parse memory text to extract details
             lines = memory_text.split("\n")
             title = metadata.get("paper_title", "Untitled")
             score = metadata.get("score", 0)
@@ -220,21 +217,15 @@ async def get_all_verdicts(
 async def get_verdicts_grouped_by_paper(
     limit: int = Query(default=50, ge=1, le=200)
 ) -> Dict[str, Any]:
-    """
-    Get verdicts grouped by paper title for version history.
-    Groups tribunals by paper title to show v1, v2, v3, etc.
-    """
     try:
         memory = TribunalMemory()
         results = await memory.get_all_verdicts(limit=limit)
 
-        # Group by paper title (normalized)
         paper_groups: Dict[str, List[Dict[str, Any]]] = {}
 
         for r in results:
             metadata = r.get("metadata", {})
             title = metadata.get("paper_title", "Untitled").strip()
-            # Normalize title for grouping (lowercase, remove extra spaces)
             normalized_title = " ".join(title.lower().split())
 
             if normalized_title not in paper_groups:
@@ -249,16 +240,13 @@ async def get_verdicts_grouped_by_paper(
                 "created_at": r.get("created_at"),
             })
 
-        # Sort versions within each paper by created_at (oldest first = v1)
         papers = []
         for normalized_title, versions in paper_groups.items():
-            # Sort by created_at if available, otherwise by score to infer version order
             sorted_versions = sorted(
                 versions,
                 key=lambda x: x.get("created_at") or "",
             )
 
-            # Add version numbers
             for i, version in enumerate(sorted_versions):
                 version["version"] = i + 1
 
@@ -270,7 +258,6 @@ async def get_verdicts_grouped_by_paper(
                 "versions": sorted_versions,
             })
 
-        # Sort papers by latest activity
         papers.sort(
             key=lambda x: x["versions"][-1].get("created_at") or "" if x["versions"] else "",
             reverse=True
@@ -287,17 +274,10 @@ async def get_verdicts_grouped_by_paper(
 
 @router.get("/{session_id}")
 async def get_verdict_by_session(session_id: str) -> Dict[str, Any]:
-    """Get a specific verdict by session ID.
-
-    First tries local storage (for rich data with agent analyses, debate transcript).
-    Falls back to Mem0 (for summary data only).
-    """
-    # Try local storage first (has rich data)
     try:
         local_storage = LocalVerdictStorage()
         local_result = await local_storage.get_verdict(session_id)
         if local_result:
-            # Return rich data from local storage
             return {
                 "session_id": session_id,
                 "tribunal_id": local_result.get("tribunal_id", session_id),
@@ -305,7 +285,6 @@ async def get_verdict_by_session(session_id: str) -> Dict[str, Any]:
                 "verdict_score": local_result.get("verdict_score", 0),
                 "verdict": local_result.get("verdict", {}),
                 "decision": local_result.get("decision", "UNKNOWN"),
-                # Rich data
                 "agent_analyses": local_result.get("agent_analyses", {}),
                 "debate_rounds": local_result.get("debate_rounds", []),
                 "critical_issues": local_result.get("critical_issues", []),
@@ -317,7 +296,6 @@ async def get_verdict_by_session(session_id: str) -> Dict[str, Any]:
     except Exception as e:
         print(f"[DEBUG] Local storage lookup failed: {e}")
 
-    # Fall back to Mem0 (summary only)
     try:
         memory = TribunalMemory()
         result = await memory.get_verdict_by_session(session_id)

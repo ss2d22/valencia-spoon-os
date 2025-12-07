@@ -1,12 +1,3 @@
-"""
-Voice API Routes for Real-time Tribunal Interaction
-
-Provides WebSocket and REST endpoints for:
-- Speech-to-text (STT) via ElevenLabs Scribe
-- Text-to-speech (TTS) via ElevenLabs
-- Real-time voice conversation with agents
-"""
-
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -20,7 +11,6 @@ from ...agents.tribunal_orchestrator import orchestrator
 
 router = APIRouter()
 
-# Lazy-load voice service to handle missing API key gracefully
 _voice_service: Optional[TribunalVoiceService] = None
 
 
@@ -50,12 +40,6 @@ class VoiceMessageRequest(BaseModel):
 
 @router.post("/transcribe")
 async def transcribe_audio(request: TranscribeRequest):
-    """
-    Transcribe audio to text using ElevenLabs Scribe.
-
-    Accepts base64-encoded audio data (webm, mp3, wav supported).
-    Returns transcribed text.
-    """
     try:
         voice = get_voice_service()
         audio_bytes = base64.b64decode(request.audio_base64)
@@ -74,9 +58,6 @@ async def transcribe_audio(request: TranscribeRequest):
 
 @router.post("/transcribe-file")
 async def transcribe_audio_file(file: UploadFile = File(...), language: str = "en"):
-    """
-    Transcribe an uploaded audio file to text.
-    """
     try:
         voice = get_voice_service()
         audio_bytes = await file.read()
@@ -95,11 +76,6 @@ async def transcribe_audio_file(file: UploadFile = File(...), language: str = "e
 
 @router.post("/synthesize")
 async def synthesize_speech(request: SynthesizeRequest):
-    """
-    Synthesize text to speech using ElevenLabs.
-
-    Returns audio as streaming MP3.
-    """
     try:
         voice = get_voice_service()
 
@@ -122,20 +98,9 @@ async def synthesize_speech(request: SynthesizeRequest):
 
 @router.post("/voice-message")
 async def send_voice_message(request: VoiceMessageRequest):
-    """
-    Send a voice message to the tribunal.
-
-    1. Transcribes the audio to text
-    2. Checks if it's a verdict request
-    3. Sends text to orchestrator or generates verdict
-    4. Returns agent responses with synthesized audio
-
-    Returns JSON with text responses and base64-encoded audio for each.
-    """
     try:
         voice = get_voice_service()
 
-        # Transcribe user's voice
         audio_bytes = base64.b64decode(request.audio_base64)
         transcription = await voice.transcribe_audio(audio_bytes, request.language)
         user_text = transcription["text"]
@@ -147,22 +112,24 @@ async def send_voice_message(request: VoiceMessageRequest):
                 "error": "Could not transcribe audio"
             }
 
-        # Get state and send to orchestrator
         state = orchestrator.get_session_state(request.session_id)
         if not state:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # Check if this is a verdict request
         if orchestrator.is_verdict_request(user_text):
             verdict = await orchestrator.generate_verdict(request.session_id)
 
-            # Create verdict announcement
-            verdict_text = f"The tribunal has reached its verdict. {verdict['decision']}. Score: {verdict['score']} out of 100. {verdict['summary']}"
+            session = orchestrator.sessions.get(request.session_id)
+            is_chinese = session and session.paper_metadata.get("language") == "zh"
 
-            # Synthesize verdict audio
+            if is_chinese:
+                verdict_text = f"审判团已作出裁决。{verdict['decision']}。得分：{verdict['score']} 分（满分100）。{verdict['summary']}"
+            else:
+                verdict_text = f"The tribunal has reached its verdict. {verdict['decision']}. Score: {verdict['score']} out of 100. {verdict['summary']}"
+
             try:
                 audio = await voice.synthesize_statement(
-                    agent_name="Narrator",
+                    agent_name="narrator",
                     text=verdict_text,
                     emotion_intensity=0.7
                 )
@@ -173,7 +140,7 @@ async def send_voice_message(request: VoiceMessageRequest):
             return {
                 "user_text": user_text,
                 "responses": [{
-                    "agent": "The Tribunal",
+                    "agent": "审判团" if is_chinese else "The Tribunal",
                     "agent_key": "verdict",
                     "text": verdict_text,
                     "audio_base64": audio_b64
@@ -188,14 +155,12 @@ async def send_voice_message(request: VoiceMessageRequest):
                 }
             }
 
-        # Process the message normally
         responses = await orchestrator.process_human_message(
             request.session_id,
             user_text,
             interrupt_current=False
         )
 
-        # Synthesize audio for each response
         audio_responses = []
         for r in responses:
             try:
@@ -211,7 +176,6 @@ async def send_voice_message(request: VoiceMessageRequest):
                     "audio_base64": base64.b64encode(audio).decode("utf-8")
                 })
             except Exception:
-                # If TTS fails, still return text
                 audio_responses.append({
                     "agent": r["agent"],
                     "agent_key": r["agent_key"],
@@ -234,21 +198,8 @@ async def send_voice_message(request: VoiceMessageRequest):
 
 @router.websocket("/ws/{session_id}")
 async def voice_websocket(websocket: WebSocket, session_id: str):
-    """
-    WebSocket for real-time voice interaction.
-
-    Protocol:
-    - Client sends: {"type": "audio", "data": "<base64 audio>", "language": "en"}
-    - Server responds: {"type": "transcription", "text": "..."}
-    - Server responds: {"type": "agent_response", "agent": "...", "text": "...", "audio": "<base64>"}
-    - Server responds: {"type": "done"}
-
-    Or for text-only:
-    - Client sends: {"type": "text", "message": "..."}
-    """
     await websocket.accept()
 
-    # Verify session exists
     state = orchestrator.get_session_state(session_id)
     if not state:
         await websocket.send_json({"type": "error", "message": "Session not found"})
@@ -273,7 +224,6 @@ async def voice_websocket(websocket: WebSocket, session_id: str):
                     })
                     continue
 
-                # Transcribe audio
                 audio_bytes = base64.b64decode(data.get("data", ""))
                 language = data.get("language", "en")
 
@@ -290,14 +240,12 @@ async def voice_websocket(websocket: WebSocket, session_id: str):
                         await websocket.send_json({"type": "done"})
                         continue
 
-                    # Process through orchestrator
                     responses = await orchestrator.process_human_message(
                         session_id,
                         user_text,
                         interrupt_current=False
                     )
 
-                    # Send each agent response with audio
                     for r in responses:
                         try:
                             audio = await voice.synthesize_statement(
@@ -330,7 +278,6 @@ async def voice_websocket(websocket: WebSocket, session_id: str):
                     })
 
             elif msg_type == "text":
-                # Text-only message (no STT needed)
                 user_text = data.get("message", "")
 
                 if not user_text.strip():
@@ -352,7 +299,6 @@ async def voice_websocket(websocket: WebSocket, session_id: str):
                         "audio": None
                     }
 
-                    # Try to synthesize audio if voice is available
                     if voice:
                         try:
                             audio = await voice.synthesize_statement(

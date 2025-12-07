@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { DebateView } from "@/components/DebateView";
 import {
@@ -9,12 +10,15 @@ import {
   getAgentAnalyses,
   type AgentAnalysis,
 } from "@/lib/api";
-import { ArrowLeft, Loader2, Gavel } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
+import { ArrowLeft, Loader2, Gavel, Moon, Sun, Globe } from "lucide-react";
 import Link from "next/link";
 
 export default function DebatePage() {
   const params = useParams();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const { language, setLanguage } = useLanguage();
   const sessionId = params.id as string;
 
   const [agents, setAgents] = useState<Record<string, AgentAnalysis>>({});
@@ -22,6 +26,11 @@ export default function DebatePage() {
   const [error, setError] = useState<string | null>(null);
   const [verdictReady, setVerdictReady] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<any[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     async function loadDebate() {
@@ -105,19 +114,36 @@ export default function DebatePage() {
               </Link>
               <span className="text-xl font-bold">Live Debate</span>
             </div>
-            <Button
-              onClick={() => {
-                if (liveTranscript.length > 0) {
-                  sessionStorage.setItem(`live_transcript_${sessionId}`, JSON.stringify(liveTranscript));
-                }
-                sessionStorage.setItem(`show_verdict_${sessionId}`, "true");
-                router.push(`/tribunal?session=${sessionId}`);
-              }}
-              className="bg-primary hover:bg-primary/90"
-              variant={verdictReady ? "default" : "outline"}
-            >
-              {"End"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setLanguage(language === "en" ? "zh" : "en")}
+                className="p-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-1 text-sm"
+              >
+                <Globe className="w-4 h-4" />
+                <span className="font-medium">{language === "en" ? "EN" : "中"}</span>
+              </button>
+              {mounted && (
+                <button
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
+                  {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+              )}
+              <Button
+                onClick={() => {
+                  if (liveTranscript.length > 0) {
+                    sessionStorage.setItem(`live_transcript_${sessionId}`, JSON.stringify(liveTranscript));
+                  }
+                  sessionStorage.setItem(`show_verdict_${sessionId}`, "true");
+                  router.push(`/tribunal?session=${sessionId}`);
+                }}
+                className="bg-primary hover:bg-primary/90"
+                variant={verdictReady ? "default" : "outline"}
+              >
+                {"End"}
+              </Button>
+            </div>
           </div>
         </div>
       </nav>

@@ -35,6 +35,7 @@ import {
 } from "@/lib/api";
 import { useVoiceRecorder, formatDuration } from "@/hooks/useVoiceRecorder";
 import { formatMarkdown } from "@/lib/formatMarkdown";
+import { useLanguage } from "@/lib/i18n";
 
 interface Message {
   id: string;
@@ -103,6 +104,7 @@ export function InteractiveTribunal({
   openingStatements,
   analyses,
 }: InteractiveTribunalProps) {
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -182,7 +184,7 @@ export function InteractiveTribunal({
         {
           id: "system-intro",
           type: "system",
-          content: `The tribunal is now in session for "${paperTitle}".`,
+          content: `${t.session.tribunalInSession} "${paperTitle}".`,
           timestamp: new Date(),
         },
         ...openingStatements.map((stmt, i) => ({
@@ -198,7 +200,7 @@ export function InteractiveTribunal({
 
       const audioPromises = openingStatements.map(async (stmt) => {
         try {
-          const audioBlob = await synthesizeSpeech(stmt.statement, stmt.agent, 0.6);
+          const audioBlob = await synthesizeSpeech(stmt.statement, stmt.agent_key, 0.6);
           const base64 = await audioToBase64(audioBlob);
           return { audio: base64, agent: stmt.agent_key };
         } catch (e) {
@@ -266,7 +268,7 @@ export function InteractiveTribunal({
           {
             id: `verdict-${Date.now()}`,
             type: "system",
-            content: `THE TRIBUNAL HAS REACHED A VERDICT: ${voiceVerdict.decision}. Score: ${voiceVerdict.score}/100`,
+            content: `${t.verdict.tribunalReachedVerdict}: ${voiceVerdict.decision}. Score: ${voiceVerdict.score}/100`,
             timestamp: new Date(),
           },
         ]);
@@ -376,7 +378,7 @@ export function InteractiveTribunal({
         for (let i = 0; i < response.responses.length; i++) {
           const r = response.responses[i];
           try {
-            const audioBlob = await synthesizeSpeech(r.response, r.agent, 0.5);
+            const audioBlob = await synthesizeSpeech(r.response, r.agent_key, 0.5);
             if (i === 0 && !isPlayingAudio) {
               playAudioBlob(audioBlob, r.agent_key);
             } else {
@@ -423,7 +425,7 @@ export function InteractiveTribunal({
         {
           id: `verdict-${Date.now()}`,
           type: "system",
-          content: `THE TRIBUNAL HAS REACHED A VERDICT: ${verdictResponse.verdict.summary} (Score: ${verdictResponse.score}/100)`,
+          content: `${t.verdict.tribunalReachedVerdict}: ${verdictResponse.verdict.summary} (Score: ${verdictResponse.score}/100)`,
           timestamp: new Date(),
         },
       ]);
@@ -465,6 +467,29 @@ export function InteractiveTribunal({
     }
   };
 
+  const getAgentName = (key: string): string => {
+    const agentNames: Record<string, keyof typeof t.agents> = {
+      skeptic: "theSkeptic",
+      statistician: "theStatistician",
+      methodologist: "theMethodologist",
+      ethicist: "theEthicist",
+    };
+    const translationKey = agentNames[key];
+    return translationKey ? t.agents[translationKey] : key;
+  };
+
+  const getSeverityLabel = (severity: string): string => {
+    const severityMap: Record<string, keyof typeof t.severity> = {
+      FATAL_FLAW: "fatalFlaw",
+      SERIOUS_CONCERN: "seriousConcern",
+      MINOR_ISSUE: "minorIssue",
+      ACCEPTABLE: "acceptable",
+      UNKNOWN: "unknown",
+    };
+    const translationKey = severityMap[severity];
+    return translationKey ? t.severity[translationKey] : severity.replace("_", " ");
+  };
+
   const renderAgentPanel = () => (
     <div className="grid grid-cols-4 gap-4 mb-6">
       {Object.entries(analyses).map(([key, { severity }]) => {
@@ -472,7 +497,7 @@ export function InteractiveTribunal({
         if (!config) return null;
         const Icon = config.icon;
         const isSpeaking = currentSpeaker === key;
-        const agentName = key.charAt(0).toUpperCase() + key.slice(1);
+        const agentName = getAgentName(key);
 
         return (
           <div
@@ -494,19 +519,19 @@ export function InteractiveTribunal({
               </AvatarFallback>
             </Avatar>
             <span className={cn("text-sm font-medium", config.color)}>
-              The {agentName}
+              {agentName}
             </span>
             <Badge
               variant="outline"
               className={cn("text-xs mt-1", severityColors[severity])}
             >
-              {severity.replace("_", " ")}
+              {getSeverityLabel(severity)}
             </Badge>
             {isSpeaking && (
               <div className="absolute -top-2 -right-2">
                 <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-full shadow-lg">
                   <Volume2 className="h-3 w-3 text-primary animate-pulse" />
-                  <span className="text-xs text-primary">Speaking</span>
+                  <span className="text-xs text-primary">{t.session.speaking}</span>
                 </div>
               </div>
             )}
@@ -572,7 +597,7 @@ export function InteractiveTribunal({
               </span>
               {severity && (
                 <Badge variant="outline" className={cn("text-xs", severityColors[severity])}>
-                  {severity.replace("_", " ")}
+                  {getSeverityLabel(severity)}
                 </Badge>
               )}
               {isSpeaking && (
@@ -601,7 +626,7 @@ export function InteractiveTribunal({
                 <MessageCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">Live Tribunal Session</CardTitle>
+                <CardTitle className="text-base">{t.session.liveTribunalSession}</CardTitle>
                 <p className="text-xs text-muted-foreground truncate max-w-xs">
                   {paperTitle}
                 </p>
@@ -641,7 +666,7 @@ export function InteractiveTribunal({
             <div className="flex justify-start my-3">
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Agents are deliberating...</span>
+                <span>{t.session.agentsDeliberating}</span>
               </div>
             </div>
           )}
@@ -665,9 +690,9 @@ export function InteractiveTribunal({
                     )} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">Tribunal Verdict</h3>
+                    <h3 className="font-bold text-lg">{t.verdict.title}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {verdict.verdict.debate_rounds} debate round{verdict.verdict.debate_rounds !== 1 ? "s" : ""} completed
+                      {verdict.verdict.debate_rounds} {t.verdict.debateRoundsCompleted}
                     </p>
                   </div>
                 </div>
@@ -691,12 +716,12 @@ export function InteractiveTribunal({
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-orange-500" />
-                    Critical Issues ({verdict.critical_issues.length})
+                    {t.verdict.criticalIssues} ({verdict.critical_issues.length})
                   </h4>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
                     {verdict.critical_issues.map((issue, i) => {
                       const issueText = typeof issue === "string" ? issue : issue.title;
-                      const severity = typeof issue === "string" ? "CONCERN" : issue.severity;
+                      const severity = typeof issue === "string" ? "SERIOUS_CONCERN" : issue.severity;
                       return (
                         <div key={i} className="bg-background/50 rounded-lg px-3 py-2 flex items-start gap-2">
                           <Badge variant="outline" className={cn(
@@ -705,7 +730,7 @@ export function InteractiveTribunal({
                             severity === "SERIOUS_CONCERN" ? "border-orange-500 text-orange-500" :
                             "border-yellow-500 text-yellow-500"
                           )}>
-                            {severity.replace("_", " ")}
+                            {getSeverityLabel(severity)}
                           </Badge>
                           <span className="text-sm">{formatMarkdown(issueText)}</span>
                         </div>
@@ -716,8 +741,8 @@ export function InteractiveTribunal({
               )}
 
               <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
-                <span>{verdict.verdict.total_concerns} concern{verdict.verdict.total_concerns !== 1 ? "s" : ""} identified</span>
-                <span>{verdict.verdict.critical_concerns} critical</span>
+                <span>{verdict.verdict.total_concerns} {t.verdict.concernsIdentified}</span>
+                <span>{verdict.verdict.critical_concerns} {t.verdict.critical}</span>
               </div>
 
               <div className="flex items-center justify-between text-xs border-t pt-3 gap-4">
@@ -725,7 +750,7 @@ export function InteractiveTribunal({
                   {verdict.mem0_stored ? (
                     <span className="text-green-500 flex items-center gap-1">
                       <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      Mem0 Stored
+                      {t.session.mem0Stored}
                     </span>
                   ) : (
                     <span className="text-muted-foreground flex items-center gap-1">
@@ -743,7 +768,7 @@ export function InteractiveTribunal({
                   ) : (
                     <span className="text-muted-foreground flex items-center gap-1">
                       <span className="w-2 h-2 bg-muted-foreground rounded-full"></span>
-                      Neo Pending
+                      {t.session.neoPending}
                     </span>
                   )}
                 </div>
@@ -774,16 +799,16 @@ export function InteractiveTribunal({
               <div className="text-center text-sm text-muted-foreground">
                 {isRecording ? (
                   <span className="text-red-500 animate-pulse">
-                    Recording... {formatDuration(duration)} (tap to stop)
+                    {t.session.recording} {formatDuration(duration)} ({t.session.tapToStop})
                   </span>
                 ) : isPlayingAudio ? (
                   <span className="text-primary animate-pulse">
-                    {currentSpeaker ? `The ${currentSpeaker.charAt(0).toUpperCase() + currentSpeaker.slice(1)} is speaking...` : "Agent speaking..."}
+                    {currentSpeaker ? `${getAgentName(currentSpeaker)} ${t.session.isSpeaking}` : t.session.agentSpeaking}
                   </span>
                 ) : isLoading ? (
-                  <span>Processing...</span>
+                  <span>{t.session.processing}</span>
                 ) : (
-                  <span>Tap the microphone to speak to the tribunal</span>
+                  <span>{t.session.tapMicrophone}</span>
                 )}
               </div>
 
@@ -795,7 +820,7 @@ export function InteractiveTribunal({
                   className="gap-2"
                 >
                   <Keyboard className="h-4 w-4" />
-                  {showTextInput ? "Hide" : "Type instead"}
+                  {showTextInput ? t.session.hide : t.session.typeInstead}
                 </Button>
 
                 <Button
@@ -806,7 +831,7 @@ export function InteractiveTribunal({
                   className="gap-2"
                 >
                   <Gavel className="h-4 w-4" />
-                  Request Verdict
+                  {t.session.requestVerdict}
                 </Button>
               </div>
 
@@ -818,7 +843,7 @@ export function InteractiveTribunal({
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Type your question..."
+                      placeholder={t.session.typeQuestion}
                       className="w-full resize-none rounded-lg border border-input bg-background px-4 py-3 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-12 max-h-[120px]"
                       rows={1}
                       disabled={isLoading}
