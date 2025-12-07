@@ -1,63 +1,76 @@
-# Adversarial Science
+# Adversarial Science Tribunal
 
-Four AI agents tear apart research papers, then store the verdict on Neo blockchain.
+Four AI agents tear apart research papers in real-time debate, then store the verdict on Neo blockchain.
 
-## How it works
+## The Problem
 
-You submit a paper. Four specialized agents analyze it:
+Peer review is broken. Papers take months to review, reviewers are overworked, and bad science still slips through. We built a system that catches methodological issues instantly - not to replace human reviewers, but to give researchers immediate feedback before they even submit.
 
-- **The Skeptic** finds alternative explanations and confounding variables
-- **The Statistician** catches p-hacking and statistical issues
-- **The Methodologist** evaluates experimental design and controls
-- **The Ethicist** spots conflicts of interest and bias
+## How It Works
 
-They debate your paper in real-time. You can jump in, challenge their findings, or ask follow-up questions. When ready, request a verdict - it gets scored, summarized, and permanently recorded on Neo blockchain.
+Upload a paper. Four specialized agents analyze it in parallel:
 
-## Tech
+- **The Skeptic** - hunts for alternative explanations and confounding variables
+- **The Statistician** - catches p-hacking, underpowered studies, and statistical misuse
+- **The Methodologist** - evaluates experimental design, controls, and reproducibility
+- **The Ethicist** - flags conflicts of interest, consent issues, and disclosure problems
 
-**SpoonOS SDK** orchestrates the multi-agent tribunal. Each agent runs independently with its own analysis prompts, then they're brought together for cross-examination rounds.
+They don't just analyze - they debate. Each agent challenges the others' findings. You can jump in anytime, ask questions, push back on their conclusions, or request clarification.
 
-**Neo N3** stores immutable verdict hashes. Every tribunal outcome gets a transaction - paper hash, score, issues found. Can't be tampered with later.
+When ready, request a verdict. The system scores your paper 0-100, lists critical issues, and permanently records everything on Neo blockchain.
 
-**Mem0** keeps long-term memory of past verdicts for semantic search and pattern recognition across tribunals.
+## Tech Stack
 
-**ElevenLabs** synthesizes the debate into audio. Each agent has a distinct voice.
+**SpoonOS SDK** - Orchestrates the multi-agent system. Each agent runs independently with specialized prompts, then coordinated for cross-examination.
 
-**FastAPI** backend, **Next.js** frontend.
+**Neo N3 Blockchain** - Every verdict gets recorded on-chain. Paper hash, score, critical issues - all immutable and timestamped.
+
+**Mem0** - Long-term memory layer with semantic embeddings. Find similar papers, track issues across your research, spot patterns.
+
+**ElevenLabs** - Voice synthesis for the debate. Each agent has a distinct voice. Supports real-time voice interaction.
+
+**Language Support** - Full English and Chinese. Agents analyze Chinese papers in Chinese with localized terminology.
+
+**FastAPI + Next.js** - Python backend for orchestration, React frontend with real-time updates.
 
 ## Setup
 
 ```bash
-# backend
+# Backend
 cd backend
-source ../spoon-env/bin/activate
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 uvicorn src.api.main:app --reload --port 8000
 
-# frontend
+# Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-## Environment
+## Environment Variables
 
 ```
-ANTHROPIC_API_KEY=
-ELEVENLABS_API_KEY=
-NEO_PRIVATE_KEY=
-MEM0_API_KEY=
+ANTHROPIC_API_KEY=     # Claude for agent reasoning
+ELEVENLABS_API_KEY=    # Voice synthesis
+NEO_PRIVATE_KEY=       # Neo blockchain signing
+MEM0_API_KEY=          # Long-term memory
 ```
 
 ## API
 
 ```
-POST /api/interactive/start     - start tribunal with paper text
-POST /api/interactive/message   - send message during debate
-POST /api/interactive/verdict   - request final verdict
-GET  /api/verdicts              - list all verdicts
-GET  /api/verdicts/{id}         - get verdict details
+POST /api/interactive/start-pdf   Start with PDF upload
+POST /api/interactive/start       Start with text
+POST /api/interactive/{id}/message  Send message during debate
+POST /api/interactive/{id}/request-verdict  Get final verdict
+GET  /api/verdicts                 List all verdicts
+GET  /api/verdicts/{id}            Verdict details
+GET  /api/verdicts/by-paper        Papers grouped by version
+POST /api/voice/synthesize         Text to speech
+POST /api/voice/transcribe         Speech to text
 ```
 
 MIT License
