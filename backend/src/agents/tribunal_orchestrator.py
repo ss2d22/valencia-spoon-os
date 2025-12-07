@@ -1,15 +1,6 @@
-"""
-Tribunal Orchestrator - Manages multi-agent conversation with human participant.
-
-Key responsibilities:
-1. Route messages to appropriate agent(s)
-2. Manage turn-taking and interruptions
-3. Maintain shared conversation context
-4. Handle agent-to-agent awareness (no cross-talk)
-"""
-
 import asyncio
 import logging
+from datetime import datetime
 from typing import Dict, Any, List, Optional, Literal
 from dataclasses import dataclass, field
 from enum import Enum
@@ -33,51 +24,29 @@ class ParticipantType(Enum):
 
 @dataclass
 class ConversationMessage:
-    """A single message in the tribunal conversation."""
     participant: ParticipantType
     content: str
     timestamp: float
-    addressed_to: Optional[List[ParticipantType]] = None  # None = all
+    addressed_to: Optional[List[ParticipantType]] = None
     was_interrupted: bool = False
-    interrupted_at: Optional[str] = None  # Partial content before interruption
+    interrupted_at: Optional[str] = None
 
 
 @dataclass
 class TribunalSession:
-    """State for an interactive tribunal session."""
     session_id: str
     paper_text: str
     paper_metadata: Dict[str, Any]
 
-    # Agent analyses (populated after initial analysis)
     analyses: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-
-    # Conversation history
     messages: List[ConversationMessage] = field(default_factory=list)
-
-    # Current speaker (for interruption handling)
     current_speaker: Optional[ParticipantType] = None
-    pending_response: Optional[str] = None  # Response being generated
-
-    # Turn state
+    pending_response: Optional[str] = None
     agents_who_have_spoken_this_round: List[ParticipantType] = field(default_factory=list)
-
-    # Verdict (populated at end)
     verdict: Optional[Dict[str, Any]] = None
 
 
 class TribunalOrchestrator:
-    """
-    Orchestrates multi-agent tribunal with human participation.
-
-    Design principles:
-    1. Each agent knows about all other agents and the human
-    2. Agents only speak when addressed OR when they have relevant expertise
-    3. Human can interrupt at any time
-    4. Context is shared - all agents see the full conversation
-    5. Agents don't "talk over" each other - orchestrator manages turns
-    """
-
     AGENT_NAMES = {
         ParticipantType.SKEPTIC: "The Skeptic",
         ParticipantType.STATISTICIAN: "The Statistician",
@@ -93,7 +62,6 @@ class TribunalOrchestrator:
     }
 
     def __init__(self):
-        # Initialize agents
         self.agents = {
             ParticipantType.SKEPTIC: SkepticAgent(),
             ParticipantType.STATISTICIAN: StatisticianAgent(),
@@ -101,14 +69,11 @@ class TribunalOrchestrator:
             ParticipantType.ETHICIST: EthicistAgent(),
         }
 
-        # Router LLM for determining which agent(s) should respond
         self.router = ChatBot(
             model_name="claude-sonnet-4-20250514",
             llm_provider="anthropic",
-            temperature=0.1  # Low temperature for consistent routing
+            temperature=0.1
         )
-
-        # Sessions
         self.sessions: Dict[str, TribunalSession] = {}
 
     def create_session(
@@ -117,7 +82,6 @@ class TribunalOrchestrator:
         paper_text: str,
         paper_metadata: Dict[str, Any]
     ) -> TribunalSession:
-        """Create a new interactive tribunal session."""
         session = TribunalSession(
             session_id=session_id,
             paper_text=paper_text,
@@ -127,13 +91,7 @@ class TribunalOrchestrator:
         return session
 
     async def run_initial_analysis(self, session_id: str) -> Dict[str, Any]:
-        """
-        Run initial parallel analysis by all 4 agents.
-        This happens before the interactive phase.
-        """
         session = self.sessions[session_id]
-
-        # Run all analyses in parallel
         results = await asyncio.gather(
             self.agents[ParticipantType.SKEPTIC].analyze_paper(
                 session.paper_text, session.paper_metadata
@@ -149,8 +107,6 @@ class TribunalOrchestrator:
             ),
             return_exceptions=True
         )
-
-        # Store analyses
         agent_types = [
             ParticipantType.SKEPTIC,
             ParticipantType.STATISTICIAN,
@@ -174,14 +130,7 @@ class TribunalOrchestrator:
         session_id: str,
         human_message: str
     ) -> List[ParticipantType]:
-        """
-        Determine which agent(s) should respond to a human message.
-
-        Returns list of agents who should respond, in order.
-        """
         session = self.sessions[session_id]
-
-        # Build context for router
         conversation_summary = self._summarize_conversation(session)
 
         router_prompt = f"""You are a tribunal moderator. A human is participating in a scientific paper review tribunal.
@@ -228,7 +177,6 @@ JSON response:"""
 
             agent_names = json.loads(response)
 
-            # Convert to ParticipantType
             name_to_type = {
                 "SKEPTIC": ParticipantType.SKEPTIC,
                 "STATISTICIAN": ParticipantType.STATISTICIAN,
@@ -239,15 +187,11 @@ JSON response:"""
             return [name_to_type[name.upper()] for name in agent_names if name.upper() in name_to_type]
 
         except Exception as e:
-            # Fallback: keyword-based routing
             return self._keyword_based_routing(human_message)
 
     def _keyword_based_routing(self, message: str) -> List[ParticipantType]:
-        """Fallback keyword-based routing."""
         message_lower = message.lower()
         respondents = []
-
-        # Check for direct addressing
         if "skeptic" in message_lower:
             respondents.append(ParticipantType.SKEPTIC)
         if "statistic" in message_lower:
@@ -256,8 +200,6 @@ JSON response:"""
             respondents.append(ParticipantType.METHODOLOGIST)
         if "ethic" in message_lower:
             respondents.append(ParticipantType.ETHICIST)
-
-        # If no direct addressing, check expertise keywords
         if not respondents:
             for agent_type, keywords in self.AGENT_KEYWORDS.items():
                 for keyword in keywords:
@@ -265,8 +207,6 @@ JSON response:"""
                         if agent_type not in respondents:
                             respondents.append(agent_type)
                         break
-
-        # If still no match, default to all agents for general questions
         if not respondents and ("?" in message or "what do you" in message_lower or "thoughts" in message_lower):
             respondents = [
                 ParticipantType.SKEPTIC,
@@ -278,7 +218,6 @@ JSON response:"""
         return respondents
 
     def _summarize_conversation(self, session: TribunalSession, last_n: int = 10) -> str:
-        """Summarize recent conversation for context."""
         if not session.messages:
             return "No conversation yet."
 
@@ -304,26 +243,13 @@ JSON response:"""
         human_message: str,
         is_follow_up: bool = False
     ) -> str:
-        """
-        Generate a response from a specific agent.
-
-        The agent is aware of:
-        - The full conversation history
-        - Other agents' analyses
-        - That the human might be addressing them specifically or generally
-        - That they should not repeat what other agents have said
-        """
         session = self.sessions[session_id]
         agent = self.agents[agent_type]
-
-        # Build context-aware prompt
         other_agents = [
             a for a in ParticipantType
             if a != agent_type and a != ParticipantType.HUMAN
         ]
         other_agents_desc = ", ".join([self.AGENT_NAMES[a] for a in other_agents])
-
-        # What other agents said in this response round
         agents_already_responded = session.agents_who_have_spoken_this_round
         already_said = ""
         for prev_agent in agents_already_responded:
@@ -367,8 +293,6 @@ Your response:"""
 
         messages = [{"role": "user", "content": prompt}]
         response = await agent.llm.ask(messages, system_msg=agent.system_prompt)
-
-        # Track that this agent has spoken
         session.agents_who_have_spoken_this_round.append(agent_type)
 
         return response.strip()
@@ -379,22 +303,8 @@ Your response:"""
         message: str,
         interrupt_current: bool = False
     ) -> List[Dict[str, Any]]:
-        """
-        Process a message from the human participant.
-
-        Args:
-            session_id: The tribunal session ID
-            message: What the human said
-            interrupt_current: If True, interrupts any agent currently speaking
-
-        Returns:
-            List of agent responses in order
-        """
         session = self.sessions[session_id]
-
-        # Handle interruption
         if interrupt_current and session.current_speaker:
-            # Mark the interrupted message
             if session.messages:
                 last_msg = session.messages[-1]
                 if last_msg.participant == session.current_speaker:
@@ -403,11 +313,7 @@ Your response:"""
 
             session.current_speaker = None
             session.pending_response = None
-
-        # Reset round tracking
         session.agents_who_have_spoken_this_round = []
-
-        # Record human message
         import time
         human_msg = ConversationMessage(
             participant=ParticipantType.HUMAN,
@@ -415,15 +321,10 @@ Your response:"""
             timestamp=time.time()
         )
         session.messages.append(human_msg)
-
-        # Determine which agents should respond
         respondents = await self.determine_respondents(session_id, message)
 
         if not respondents:
             return []
-
-        # Generate responses from each agent (in order, not parallel)
-        # This ensures later agents can reference earlier responses
         responses = []
         for agent_type in respondents:
             session.current_speaker = agent_type
@@ -436,7 +337,6 @@ Your response:"""
             )
 
             if response and response.strip():
-                # Record agent message
                 agent_msg = ConversationMessage(
                     participant=agent_type,
                     content=response,
@@ -457,11 +357,6 @@ Your response:"""
         self,
         session_id: str
     ) -> List[Dict[str, Any]]:
-        """
-        Get brief opening statements from each agent after initial analysis.
-        These are short summaries of their key findings.
-        Runs in parallel for speed.
-        """
         session = self.sessions[session_id]
         import time
 
@@ -469,8 +364,6 @@ Your response:"""
             agent = self.agents[agent_type]
             analysis = session.analyses.get(agent_type.value, {})
             severity = analysis.get("severity", "UNKNOWN")
-
-            # Generate a brief opening statement
             prompt = f"""Based on your analysis, give a 1-2 sentence opening statement. Be direct and punchy.
 
 Severity: {severity}
@@ -489,7 +382,6 @@ Your opening statement (1-2 sentences only):"""
                 "statement": statement.strip()
             }
 
-        # Run all 4 opening statements in parallel
         agent_types = [
             ParticipantType.SKEPTIC,
             ParticipantType.STATISTICIAN,
@@ -513,8 +405,6 @@ Your opening statement (1-2 sentences only):"""
                 "severity": result["severity"],
                 "statement": result["statement"]
             })
-
-            # Record in conversation
             session.messages.append(ConversationMessage(
                 participant=result["agent_type"],
                 content=result["statement"],
@@ -524,7 +414,6 @@ Your opening statement (1-2 sentences only):"""
         return statements
 
     def is_verdict_request(self, message: str) -> bool:
-        """Check if the user is asking for a verdict."""
         message_lower = message.lower()
         verdict_keywords = [
             "verdict", "final verdict", "give me the verdict",
@@ -538,10 +427,7 @@ Your opening statement (1-2 sentences only):"""
         return any(kw in message_lower for kw in verdict_keywords)
 
     async def generate_verdict(self, session_id: str) -> Dict[str, Any]:
-        """Generate a final verdict for the tribunal session."""
         session = self.sessions[session_id]
-
-        # Build context from all analyses and conversation
         analyses_summary = ""
         for agent_type in [ParticipantType.SKEPTIC, ParticipantType.STATISTICIAN,
                           ParticipantType.METHODOLOGIST, ParticipantType.ETHICIST]:
@@ -584,22 +470,14 @@ Your verdict:"""
             messages,
             system_msg="You are an impartial scientific judge. Be firm but fair."
         )
-
-        # Parse the verdict
         verdict = self._parse_verdict(verdict_response)
-
-        # Store verdict in session
         session.verdict = verdict
-
-        # Record in conversation
         import time
         session.messages.append(ConversationMessage(
             participant=ParticipantType.HUMAN,
             content="[Verdict Requested]",
             timestamp=time.time()
         ))
-
-        # Store to Mem0 (long-term memory) and Neo (blockchain)
         await self._store_verdict_to_backends(session_id, verdict, session)
 
         return verdict
@@ -610,24 +488,92 @@ Your verdict:"""
         verdict: Dict[str, Any],
         session: TribunalSession
     ) -> None:
-        """Store verdict to Mem0 and Neo blockchain (best-effort, non-blocking)."""
         paper_title = session.paper_metadata.get("title", "Untitled Paper")
+        debate_rounds = []
+        current_round = {"round_number": 1, "statements": []}
+        human_count = 0
+        human_messages = []
 
-        # Build full verdict data for storage
+        for msg in session.messages:
+            if msg.participant == ParticipantType.HUMAN:
+                human_count += 1
+                # Add human message to current round
+                current_round["statements"].append({
+                    "agent": "You",
+                    "text": msg.content,
+                    "intensity": 5,
+                    "is_user": True,
+                    "was_interrupted": False
+                })
+                # Also track in separate list for participation stats
+                human_messages.append({
+                    "text": msg.content,
+                    "timestamp": datetime.fromtimestamp(msg.timestamp).isoformat() if msg.timestamp else None
+                })
+                # Start new round after user message
+                if current_round["statements"]:
+                    debate_rounds.append(current_round)
+                    current_round = {"round_number": len(debate_rounds) + 1, "statements": []}
+            else:
+                current_round["statements"].append({
+                    "agent": self.AGENT_NAMES.get(msg.participant, msg.participant.value),
+                    "text": msg.content,
+                    "intensity": 7,
+                    "is_user": False,
+                    "was_interrupted": msg.was_interrupted
+                })
+        if current_round["statements"]:
+            debate_rounds.append(current_round)
+
+        # Build full verdict data for storage (includes all session data)
         verdict_data = {
             "tribunal_id": session_id,
+            "session_id": session_id,
             "paper_title": paper_title,
             "verdict_score": verdict.get("score", 50),
             "decision": verdict.get("decision", "UNKNOWN"),
-            "verdict": verdict,
+            "verdict": {
+                "summary": verdict.get("summary", ""),
+                "recommendation": f"Decision: {verdict.get('decision', 'UNKNOWN')}",
+            },
+            # Full agent analyses
+            "agent_analyses": {
+                agent_key: {
+                    "agent": self.AGENT_NAMES.get(ParticipantType(agent_key), agent_key),
+                    "raw_response": analysis.get("raw_response", ""),
+                    "concerns": analysis.get("concerns", []),
+                    "severity": analysis.get("severity", "UNKNOWN"),
+                    "confidence": analysis.get("confidence", 50),
+                }
+                for agent_key, analysis in session.analyses.items()
+            },
+            # Full debate transcript
+            "debate_rounds": debate_rounds,
+            # Full critical issues with details
             "critical_issues": [
-                {"title": issue, "severity": "CONCERN"}
+                {
+                    "title": issue,
+                    "severity": "SERIOUS_CONCERN",
+                    "agent": "Tribunal",
+                    "description": issue
+                }
                 for issue in verdict.get("critical_issues", [])
             ],
-            "debate_rounds": len([m for m in session.messages if m.participant == ParticipantType.HUMAN]),
+            "critical_issues_count": len(verdict.get("critical_issues", [])),
+            "total_messages": len(session.messages),
+            "human_interactions": human_count,
+            "human_messages": human_messages,
         }
 
-        # Store to Mem0 (best-effort)
+        try:
+            from ..storage.local_storage import LocalVerdictStorage
+            local_storage = LocalVerdictStorage()
+            local_key = await local_storage.store_verdict(verdict_data, session_id)
+            logger.info(f"✅ Full verdict stored to local storage: {local_key}")
+            verdict["local_stored"] = True
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to store verdict to local storage: {e}")
+            verdict["local_stored"] = False
         try:
             from ..memory.tribunal_memory import TribunalMemory
             memory = TribunalMemory()
@@ -638,14 +584,12 @@ Your verdict:"""
             logger.warning(f"⚠️ Failed to store verdict to Mem0: {e}")
             verdict["mem0_stored"] = False
             verdict["mem0_error"] = str(e)
-
-        # Store to Neo blockchain (best-effort)
         try:
             from ..neo.neo_client import store_verdict
             neo_tx_hash = await store_verdict(
-                paper_content=session.paper_text[:5000],  # Limit content for hashing
+                paper_content=session.paper_text[:5000],
                 verdict_score=verdict.get("score", 50),
-                aioz_verdict_key="",  # No AIOZ for now
+                aioz_verdict_key="",
                 aioz_audio_key="",
                 tribunal_id=session_id
             )
@@ -657,7 +601,6 @@ Your verdict:"""
             verdict["neo_error"] = str(e)
 
     def _parse_verdict(self, response: str) -> Dict[str, Any]:
-        """Parse the verdict response into structured format."""
         lines = response.strip().split("\n")
         verdict = {
             "decision": "UNKNOWN",
@@ -683,7 +626,6 @@ Your verdict:"""
             elif line.startswith("CRITICAL_ISSUES:"):
                 current_section = "issues"
             elif current_section == "issues" and line:
-                # Remove numbering like "1. " or "- "
                 issue = line.lstrip("0123456789.-) ").strip()
                 if issue:
                     verdict["critical_issues"].append(issue)
@@ -693,7 +635,6 @@ Your verdict:"""
         return verdict
 
     def get_session_state(self, session_id: str) -> Dict[str, Any]:
-        """Get the current state of a session for the frontend."""
         session = self.sessions.get(session_id)
         if not session:
             return None

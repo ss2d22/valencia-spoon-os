@@ -3,28 +3,30 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import {
-  Gavel,
-  ArrowLeft,
-  FileText,
-  Calendar,
-  Database,
-  AlertTriangle,
-  Plus,
-} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, AlertTriangle, Plus, Gavel } from "lucide-react";
 import Link from "next/link";
-import { getVerdictBySessionId, type DashboardVerdict } from "@/lib/api";
+import { VerdictSummary } from "@/components/VerdictSummary";
+import {
+  getVerdictBySessionId,
+  type RichVerdictData,
+  type Verdict,
+  type AgentAnalysis,
+} from "@/lib/api";
+
+interface TranscriptEntry {
+  speaker: string;
+  text: string;
+  timestamp: Date | string;
+  isUser?: boolean;
+}
 
 export default function VerdictPage() {
   const params = useParams();
   const sessionId = params.id as string;
 
-  const [verdict, setVerdict] = useState<(DashboardVerdict & { metadata?: Record<string, unknown> }) | null>(null);
+  const [verdictData, setVerdictData] = useState<RichVerdictData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +38,7 @@ export default function VerdictPage() {
         setLoading(true);
         setError(null);
         const data = await getVerdictBySessionId(sessionId);
-        setVerdict(data);
+        setVerdictData(data);
       } catch (err) {
         console.error("Failed to load verdict:", err);
         setError(err instanceof Error ? err.message : "Failed to load verdict");
@@ -48,42 +50,64 @@ export default function VerdictPage() {
     loadVerdict();
   }, [sessionId]);
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-500";
-    if (score >= 60) return "text-yellow-500";
-    return "text-red-500";
+  const transformToVerdict = (data: RichVerdictData): Verdict => {
+    return {
+      session_id: data.session_id,
+      verdict: {
+        summary: data.verdict?.summary || "",
+        recommendation: data.verdict?.recommendation || "",
+      },
+      verdict_score: data.verdict_score,
+      critical_issues: (data.critical_issues || []).map((issue) => ({
+        title: typeof issue === "string" ? issue : issue.title,
+        agent: typeof issue === "string" ? "Unknown" : issue.agent,
+        severity: (typeof issue === "string" ? "MINOR_ISSUE" : issue.severity) as
+          | "FATAL_FLAW"
+          | "SERIOUS_CONCERN"
+          | "MINOR_ISSUE",
+        description: typeof issue === "string" ? issue : issue.description || "",
+      })),
+      neo_tx_hash: undefined,
+      aioz_verdict_key: undefined,
+      aioz_audio_key: undefined,
+    };
   };
 
-  const getScoreBadgeVariant = (score: number): "default" | "secondary" | "destructive" => {
-    if (score >= 80) return "default";
-    if (score >= 60) return "secondary";
-    return "destructive";
-  };
+  const transformToTranscript = (data: RichVerdictData): TranscriptEntry[] => {
+    const entries: TranscriptEntry[] = [];
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "Unknown";
-    try {
-      return new Date(dateStr).toLocaleString();
-    } catch {
-      return "Unknown";
+    if (data.debate_rounds) {
+      data.debate_rounds.forEach((round, roundIndex) => {
+        round.statements.forEach((statement, stmtIndex) => {
+          entries.push({
+            speaker: statement.agent,
+            text: statement.text,
+            timestamp: new Date(Date.now() - (data.debate_rounds!.length - roundIndex) * 60000 - stmtIndex * 5000),
+            isUser: statement.is_user || statement.agent === "You",
+          });
+        });
+      });
     }
+
+    return entries;
   };
 
-  // Parse memory text to extract verdict details
-  const parseMemoryText = (text?: string) => {
-    if (!text) return {};
+  const transformToAgents = (data: RichVerdictData): Record<string, AgentAnalysis> => {
+    const agents: Record<string, AgentAnalysis> = {};
 
-    const lines = text.split("\n").filter(Boolean);
-    const parsed: Record<string, string> = {};
-
-    for (const line of lines) {
-      const [key, ...valueParts] = line.split(":");
-      if (key && valueParts.length) {
-        parsed[key.trim()] = valueParts.join(":").trim();
-      }
+    if (data.agent_analyses) {
+      Object.entries(data.agent_analyses).forEach(([key, analysis]) => {
+        agents[key] = {
+          agent: analysis.agent,
+          raw_response: analysis.raw_response,
+          concerns: analysis.concerns || [],
+          severity: analysis.severity,
+          confidence: analysis.confidence,
+        };
+      });
     }
 
-    return parsed;
+    return agents;
   };
 
   if (loading) {
@@ -97,21 +121,25 @@ export default function VerdictPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
-              <span className="ml-4 text-xl font-bold">Loading...</span>
+              <div className="flex items-center gap-2 ml-4">
+                <Gavel className="h-5 w-5 text-primary" />
+                <span className="text-xl font-bold">Loading...</span>
+              </div>
             </div>
           </div>
         </nav>
         <main className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             <Skeleton className="h-64 w-full mb-4" />
-            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full mb-4" />
+            <Skeleton className="h-48 w-full" />
           </div>
         </main>
       </div>
     );
   }
 
-  if (error || !verdict) {
+  if (error || !verdictData) {
     return (
       <div className="min-h-screen bg-background">
         <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
@@ -122,7 +150,10 @@ export default function VerdictPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
-              <span className="ml-4 text-xl font-bold">Verdict Not Found</span>
+              <div className="flex items-center gap-2 ml-4">
+                <Gavel className="h-5 w-5 text-primary" />
+                <span className="text-xl font-bold">Verdict Not Found</span>
+              </div>
             </div>
           </div>
         </nav>
@@ -134,7 +165,7 @@ export default function VerdictPage() {
                   <AlertTriangle className="h-5 w-5" />
                   <div>
                     <p className="font-medium">Failed to load verdict</p>
-                    <p className="text-sm">{error || "Verdict not found in Mem0 storage"}</p>
+                    <p className="text-sm">{error || "Verdict not found"}</p>
                   </div>
                 </div>
                 <div className="mt-4 flex gap-2">
@@ -159,7 +190,43 @@ export default function VerdictPage() {
     );
   }
 
-  const parsedDetails = parseMemoryText(verdict.memory_text);
+  const verdict = transformToVerdict(verdictData);
+  const liveTranscript = transformToTranscript(verdictData);
+  const agents = transformToAgents(verdictData);
+
+  const hasAgentData = Object.keys(agents).length > 0;
+  const displayAgents = hasAgentData
+    ? agents
+    : {
+        skeptic: {
+          agent: "The Skeptic",
+          raw_response: "",
+          concerns: [],
+          severity: "UNKNOWN",
+          confidence: 0,
+        },
+        statistician: {
+          agent: "The Statistician",
+          raw_response: "",
+          concerns: [],
+          severity: "UNKNOWN",
+          confidence: 0,
+        },
+        methodologist: {
+          agent: "The Methodologist",
+          raw_response: "",
+          concerns: [],
+          severity: "UNKNOWN",
+          confidence: 0,
+        },
+        ethicist: {
+          agent: "The Ethicist",
+          raw_response: "",
+          concerns: [],
+          severity: "UNKNOWN",
+          confidence: 0,
+        },
+      };
 
   return (
     <div className="min-h-screen bg-background">
@@ -173,8 +240,10 @@ export default function VerdictPage() {
                 </Button>
               </Link>
               <div className="flex items-center gap-2">
-                <Gavel className="h-6 w-6 text-primary" />
-                <span className="text-xl font-bold">Verdict Details</span>
+                <Gavel className="h-5 w-5 text-primary" />
+                <span className="text-xl font-bold truncate max-w-[300px]">
+                  {verdictData.paper_title}
+                </span>
               </div>
             </div>
             <Link href="/interactive">
@@ -188,140 +257,13 @@ export default function VerdictPage() {
       </nav>
 
       <main className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Paper Title & Score */}
-          <Card className="glass-card border-slate-800/50">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-2xl mb-2">
-                    {verdict.paper_title}
-                  </CardTitle>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(verdict.created_at)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Database className="h-4 w-4" />
-                      Stored in Mem0
-                    </span>
-                  </div>
-                </div>
-                <Badge
-                  variant={getScoreBadgeVariant(verdict.verdict_score)}
-                  className="text-lg px-3 py-1"
-                >
-                  {verdict.verdict_score}/100
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Verdict Score</span>
-                    <span className={cn("font-bold", getScoreColor(verdict.verdict_score))}>
-                      {verdict.verdict_score}%
-                    </span>
-                  </div>
-                  <Progress value={verdict.verdict_score} className="h-3" />
-                </div>
-
-                <div className="flex items-center justify-between text-sm pt-2 border-t">
-                  <span className="text-muted-foreground">Critical Issues Found</span>
-                  <Badge variant={verdict.critical_issues_count > 3 ? "destructive" : verdict.critical_issues_count > 0 ? "secondary" : "default"}>
-                    {verdict.critical_issues_count}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Verdict Summary from Memory */}
-          {parsedDetails["Verdict"] && (
-            <Card className="glass-card border-slate-800/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Verdict Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground leading-relaxed">
-                  {parsedDetails["Verdict"]}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Critical Issues */}
-          {parsedDetails["Critical Issues"] && (
-            <Card className="glass-card border-slate-800/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                  Critical Issues
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {parsedDetails["Critical Issues"].split(",").map((issue, i) => (
-                    <Badge key={i} variant="outline" className="py-1">
-                      {issue.trim()}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Session Metadata */}
-          <Card className="glass-card border-slate-800/50">
-            <CardHeader>
-              <CardTitle className="text-sm text-muted-foreground">
-                Session Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Session ID</p>
-                  <p className="font-mono text-xs">{verdict.session_id}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Memory ID</p>
-                  <p className="font-mono text-xs">{verdict.memory_id || "N/A"}</p>
-                </div>
-                {parsedDetails["Debate Rounds"] && (
-                  <div>
-                    <p className="text-muted-foreground">Debate Rounds</p>
-                    <p>{parsedDetails["Debate Rounds"]}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-muted-foreground">Created</p>
-                  <p>{formatDate(verdict.created_at)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Link href="/dashboard" className="flex-1">
-              <Button variant="outline" className="w-full">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
-            <Link href="/interactive" className="flex-1">
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Submit Revision
-              </Button>
-            </Link>
-          </div>
+        <div className="max-w-4xl mx-auto">
+          <VerdictSummary
+            verdict={verdict}
+            liveTranscript={liveTranscript}
+            agents={displayAgents}
+            sessionId={sessionId}
+          />
         </div>
       </main>
     </div>

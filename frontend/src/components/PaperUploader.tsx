@@ -53,7 +53,6 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
     }
   };
 
-  // Route to interactive mode by default
   const handleSubmit = async () => {
     setError(null);
     setIsLoading(true);
@@ -62,16 +61,13 @@ export function PaperUploader({ isLoading: externalLoading }: PaperUploaderProps
       let session;
 
       if (!textMode && file) {
-        // PDF upload -> Interactive mode
         session = await startInteractiveSessionPdf(file);
       } else if (textMode && text.trim().length >= 100) {
-        // Text submit -> Interactive mode
         session = await startInteractiveSession(text, title || undefined);
       } else {
         throw new Error("Please provide a PDF file or at least 100 characters of text");
       }
 
-      // Store session in localStorage for the interactive page
       localStorage.setItem("interactiveSession", JSON.stringify(session));
       router.push("/interactive?autostart=true");
     } catch (err) {

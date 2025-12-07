@@ -46,7 +46,6 @@ export default function DebatePage() {
     loadDebate();
   }, [sessionId]);
 
-  // Poll for verdict readiness
   useEffect(() => {
     if (!sessionId) return;
 
@@ -57,7 +56,6 @@ export default function DebatePage() {
           setVerdictReady(true);
         }
       } catch {
-        // Silent error
       }
     };
 
@@ -67,10 +65,7 @@ export default function DebatePage() {
   }, [sessionId]);
 
   const handleUserMessage = async (message: string) => {
-    // In a real implementation, this would send the message to the backend
-    // and receive agent responses via WebSocket or polling
     console.log("User message sent to backend:", message);
-    // The DebateView component will handle the mock responses for UI testing
   };
 
   if (loading) {
@@ -112,11 +107,9 @@ export default function DebatePage() {
             </div>
             <Button
               onClick={() => {
-                // Store live transcript in sessionStorage
                 if (liveTranscript.length > 0) {
                   sessionStorage.setItem(`live_transcript_${sessionId}`, JSON.stringify(liveTranscript));
                 }
-                // Set flag to indicate user wants to see verdict
                 sessionStorage.setItem(`show_verdict_${sessionId}`, "true");
                 router.push(`/tribunal?session=${sessionId}`);
               }}

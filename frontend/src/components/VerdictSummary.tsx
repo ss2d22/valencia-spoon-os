@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,10 +21,10 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
-  Save,
 } from "lucide-react";
 import type { Verdict, DebateRound, AgentAnalysis } from "@/lib/api";
 import Link from "next/link";
+import { formatMarkdown } from "@/lib/formatMarkdown";
 
 interface TranscriptEntry {
   speaker: string;
@@ -108,19 +107,16 @@ export function VerdictSummary({
   agents,
   sessionId,
 }: VerdictSummaryProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState("verdict");
 
   const fatalFlaws = verdict.critical_issues.filter((i) => i.severity === "FATAL_FLAW");
   const seriousConcerns = verdict.critical_issues.filter((i) => i.severity === "SERIOUS_CONCERN");
   const minorIssues = verdict.critical_issues.filter((i) => i.severity === "MINOR_ISSUE");
 
-  // Calculate user participation from live transcript
   const userMessages = liveTranscript.filter((entry) => entry.isUser);
   const addressedCritiques = Math.floor(userMessages.length * 0.3);
   const interactionScore = Math.min(100, Math.floor((addressedCritiques / Math.max(1, fatalFlaws.length)) * 100) || 0);
 
-  // Format timestamp for display
   const formatTime = (timestamp: Date | string) => {
     try {
       if (typeof timestamp === "string") {
@@ -139,23 +135,9 @@ export function VerdictSummary({
     }
   };
 
-  const handleSave = () => {
-    // Navigate to dashboard page
-    router.push("/dashboard");
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tribunal Verdict</h1>
-        <Button
-          onClick={handleSave}
-          className="bg-primary hover:bg-primary/90"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          Save
-        </Button>
-      </div>
+      <h1 className="text-2xl font-bold">Tribunal Verdict</h1>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="verdict">Verdict</TabsTrigger>
@@ -200,14 +182,14 @@ export function VerdictSummary({
               {verdict.verdict.summary && (
                 <div className="p-4 rounded-lg bg-muted/50 space-y-2">
                   <h4 className="font-medium">Summary</h4>
-                  <p className="text-sm text-muted-foreground">{verdict.verdict.summary}</p>
+                  <p className="text-sm text-muted-foreground">{formatMarkdown(verdict.verdict.summary)}</p>
                 </div>
               )}
 
               {verdict.verdict.recommendation && (
                 <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
                   <h4 className="font-medium text-primary">Recommendation</h4>
-                  <p className="text-sm">{verdict.verdict.recommendation}</p>
+                  <p className="text-sm">{formatMarkdown(verdict.verdict.recommendation)}</p>
                 </div>
               )}
 
@@ -227,7 +209,7 @@ export function VerdictSummary({
                             {getSeverityIcon(issue.severity)}
                             <div className="flex-1">
                               <p className="font-medium text-sm">{issue.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{issue.description}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{formatMarkdown(issue.description)}</p>
                               <Badge variant="outline" className="mt-2 text-xs">
                                 {issue.agent}
                               </Badge>
@@ -250,7 +232,7 @@ export function VerdictSummary({
                             {getSeverityIcon(issue.severity)}
                             <div className="flex-1">
                               <p className="font-medium text-sm">{issue.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{issue.description}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{formatMarkdown(issue.description)}</p>
                               <Badge variant="outline" className="mt-2 text-xs">
                                 {issue.agent}
                               </Badge>
@@ -273,7 +255,7 @@ export function VerdictSummary({
                             {getSeverityIcon(issue.severity)}
                             <div className="flex-1">
                               <p className="font-medium text-sm">{issue.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">{issue.description}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{formatMarkdown(issue.description)}</p>
                               <Badge variant="outline" className="mt-2 text-xs">
                                 {issue.agent}
                               </Badge>
@@ -368,7 +350,7 @@ export function VerdictSummary({
                               {formatTime(entry.timestamp)}
                             </span>
                           </div>
-                          <p className="text-sm text-muted-foreground">{entry.text}</p>
+                          <p className="text-sm text-muted-foreground">{formatMarkdown(entry.text)}</p>
                         </div>
                       </div>
                     );
@@ -483,7 +465,7 @@ export function VerdictSummary({
                             {formatTime(msg.timestamp)}
                           </span>
                         </div>
-                        <p className="text-sm">{msg.text}</p>
+                        <p className="text-sm">{formatMarkdown(msg.text)}</p>
                       </div>
                     ))
                   ) : (

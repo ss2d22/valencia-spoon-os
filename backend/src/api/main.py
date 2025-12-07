@@ -6,7 +6,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env file from backend directory (override=True to replace stale env vars)
 env_path = Path(__file__).parent.parent.parent / ".env"
 load_dotenv(env_path, override=True)
 

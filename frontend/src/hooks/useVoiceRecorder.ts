@@ -80,7 +80,6 @@ export function useVoiceRecorder(
 
       streamRef.current = stream;
 
-      // Use webm for better compatibility with ElevenLabs
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -120,12 +119,10 @@ export function useVoiceRecorder(
       setIsPaused(false);
       startTimeRef.current = Date.now();
 
-      // Update duration every 100ms
       timerRef.current = setInterval(() => {
         const elapsed = Date.now() - startTimeRef.current;
         setDuration(elapsed);
 
-        // Auto-stop if max duration reached
         if (elapsed >= maxDuration) {
           mediaRecorderRef.current?.stop();
           setIsRecording(false);
@@ -183,7 +180,6 @@ export function useVoiceRecorder(
   };
 }
 
-// Helper to format duration
 export function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);

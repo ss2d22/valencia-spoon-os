@@ -1,7 +1,5 @@
-// Mock data for UI testing without backend
 import type { Verdict, DebateRound, AgentAnalysis, TribunalSession } from "./api";
 
-// Mock session data
 export const mockSession: TribunalSession = {
   session_id: "test-session-123",
   status: "completed",
@@ -11,7 +9,6 @@ export const mockSession: TribunalSession = {
   },
 };
 
-// Mock agent analyses
 export const mockAgents: Record<string, AgentAnalysis> = {
   "The Skeptic": {
     agent: "The Skeptic",
@@ -102,7 +99,6 @@ export const mockAgents: Record<string, AgentAnalysis> = {
   },
 };
 
-// Mock debate rounds
 export const mockDebateRounds: DebateRound[] = [
   {
     round_number: 1,
@@ -171,7 +167,6 @@ export const mockDebateRounds: DebateRound[] = [
   },
 ];
 
-// Mock verdict
 export const mockVerdict: Verdict = {
   session_id: "test-session-123",
   verdict: {
@@ -240,7 +235,6 @@ export const mockVerdict: Verdict = {
   aioz_audio_key: "audio/test-session-123.mp3",
 };
 
-// Mock status progression for loading timeline
 export const mockStatusProgression = [
   { stage: "upload", delay: 0 },
   { stage: "parsing", delay: 1000 },

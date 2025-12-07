@@ -34,6 +34,7 @@ import {
   type InteractiveVerdict,
 } from "@/lib/api";
 import { useVoiceRecorder, formatDuration } from "@/hooks/useVoiceRecorder";
+import { formatMarkdown } from "@/lib/formatMarkdown";
 
 interface Message {
   id: string;
@@ -128,7 +129,6 @@ export function InteractiveTribunal({
     maxDuration: 30000,
   });
 
-  // Play audio from blob
   const playAudioBlob = useCallback(async (blob: Blob, agentKey?: string) => {
     if (!voiceEnabled) return;
 
@@ -149,7 +149,6 @@ export function InteractiveTribunal({
       setIsPlayingAudio(false);
       setCurrentSpeaker(null);
       URL.revokeObjectURL(url);
-      // Play next in queue
       if (audioQueueRef.current.length > 0) {
         const next = audioQueueRef.current.shift();
         if (next) {
@@ -157,7 +156,6 @@ export function InteractiveTribunal({
           playAudioBlob(nextBlob, next.agent);
         }
       } else if (voiceSupported && !verdict) {
-        // Auto-start listening when queue is empty
         setIsListening(true);
         startRecording();
       }
@@ -174,14 +172,12 @@ export function InteractiveTribunal({
     });
   }, [voiceEnabled, voiceSupported, verdict, startRecording]);
 
-  // Play opening statements on mount
   useEffect(() => {
     if (hasPlayedOpening || !voiceEnabled) return;
 
     const playOpeningStatements = async () => {
       setHasPlayedOpening(true);
 
-      // Add all messages first
       const initialMessages: Message[] = [
         {
           id: "system-intro",
@@ -200,8 +196,6 @@ export function InteractiveTribunal({
       ];
       setMessages(initialMessages);
 
-      // Synthesize ALL audio in parallel first, then play sequentially
-      // This ensures the queue is fully populated before playback starts
       const audioPromises = openingStatements.map(async (stmt) => {
         try {
           const audioBlob = await synthesizeSpeech(stmt.statement, stmt.agent, 0.6);
@@ -217,9 +211,7 @@ export function InteractiveTribunal({
       const validAudio = audioResults.filter((a): a is { audio: string; agent: string } => a !== null);
 
       if (validAudio.length > 0) {
-        // Queue all except first
         audioQueueRef.current = validAudio.slice(1);
-        // Play first one
         const firstBlob = base64ToAudioBlob(validAudio[0].audio);
         playAudioBlob(firstBlob, validAudio[0].agent);
       }
@@ -228,7 +220,6 @@ export function InteractiveTribunal({
     playOpeningStatements();
   }, [hasPlayedOpening, voiceEnabled, paperTitle, openingStatements, playAudioBlob]);
 
-  // Handle voice recording completion - auto stop listening
   useEffect(() => {
     if (audioBlob && !isRecording) {
       setIsListening(false);
@@ -252,7 +243,6 @@ export function InteractiveTribunal({
             timestamp: new Date(),
           },
         ]);
-        // Restart listening
         if (voiceSupported && !verdict) {
           setIsListening(true);
           startRecording();
@@ -260,7 +250,6 @@ export function InteractiveTribunal({
         return;
       }
 
-      // Add user message
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         type: "human",
@@ -269,11 +258,9 @@ export function InteractiveTribunal({
       };
       setMessages((prev) => [...prev, userMessage]);
 
-      // Check if this is a verdict response
       if (response.verdict) {
         const voiceVerdict = response.verdict;
 
-        // Add verdict message
         setMessages((prev) => [
           ...prev,
           {
@@ -284,7 +271,6 @@ export function InteractiveTribunal({
           },
         ]);
 
-        // Set verdict state with full details mapped to InteractiveVerdict structure
         setVerdict({
           score: voiceVerdict.score,
           verdict: {
@@ -304,7 +290,6 @@ export function InteractiveTribunal({
           mem0_stored: voiceVerdict.mem0_stored,
         });
 
-        // Play verdict audio if available
         const verdictAudio = response.responses.find((r) => r.agent_key === "verdict");
         if (verdictAudio?.audio_base64 && voiceEnabled) {
           const audioBlob = base64ToAudioBlob(verdictAudio.audio_base64);
@@ -313,7 +298,6 @@ export function InteractiveTribunal({
         return;
       }
 
-      // Add agent responses and queue audio
       const agentMessages: Message[] = response.responses.map((r, i) => ({
         id: `agent-${Date.now()}-${i}`,
         type: "agent" as const,
@@ -324,7 +308,6 @@ export function InteractiveTribunal({
       }));
       setMessages((prev) => [...prev, ...agentMessages]);
 
-      // Play audio responses
       const audioResponses = response.responses
         .filter((r) => r.audio_base64)
         .map((r) => ({ audio: r.audio_base64!, agent: r.agent_key }));
@@ -334,7 +317,6 @@ export function InteractiveTribunal({
         const firstBlob = base64ToAudioBlob(audioResponses[0].audio);
         playAudioBlob(firstBlob, audioResponses[0].agent);
       } else if (voiceSupported && !verdict) {
-        // No audio, restart listening
         setIsListening(true);
         startRecording();
       }
@@ -360,7 +342,6 @@ export function InteractiveTribunal({
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
-    // Stop any recording
     if (isRecording) {
       stopRecording();
       setIsListening(false);
@@ -391,7 +372,6 @@ export function InteractiveTribunal({
 
       setMessages((prev) => [...prev, ...agentMessages]);
 
-      // Synthesize and play audio for responses
       if (voiceEnabled) {
         for (let i = 0; i < response.responses.length; i++) {
           const r = response.responses[i];
@@ -425,7 +405,6 @@ export function InteractiveTribunal({
   };
 
   const handleRequestVerdict = async () => {
-    // Stop recording and audio
     if (isRecording) {
       stopRecording();
       setIsListening(false);
@@ -468,7 +447,6 @@ export function InteractiveTribunal({
       stopRecording();
       setIsListening(false);
     } else {
-      // Stop any playing audio
       if (audioRef.current) {
         audioRef.current.pause();
         setIsPlayingAudio(false);
@@ -543,7 +521,7 @@ export function InteractiveTribunal({
       return (
         <div key={message.id} className="flex justify-center my-4">
           <div className="bg-muted/50 rounded-lg px-4 py-2 text-sm text-muted-foreground max-w-2xl text-center">
-            {message.content}
+            {formatMarkdown(message.content)}
           </div>
         </div>
       );
@@ -554,7 +532,7 @@ export function InteractiveTribunal({
         <div key={message.id} className="flex justify-end my-3">
           <div className="flex items-start gap-3 max-w-[80%]">
             <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-3">
-              <p className="text-sm">{message.content}</p>
+              <p className="text-sm">{formatMarkdown(message.content)}</p>
             </div>
             <Avatar className="h-8 w-8 bg-primary/20">
               <AvatarFallback className="bg-transparent text-primary">
@@ -605,7 +583,7 @@ export function InteractiveTribunal({
               "bg-muted/50 rounded-2xl rounded-tl-sm px-4 py-3 transition-all duration-300",
               isSpeaking && "ring-1 ring-primary/50"
             )}>
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <p className="text-sm whitespace-pre-wrap">{formatMarkdown(message.content)}</p>
             </div>
           </div>
         </div>
@@ -653,7 +631,6 @@ export function InteractiveTribunal({
           </div>
         </CardHeader>
 
-        {/* Agent Panel with Speaking Animation */}
         <div className="px-4 py-4 border-b bg-muted/20">
           {renderAgentPanel()}
         </div>
@@ -674,7 +651,6 @@ export function InteractiveTribunal({
         <div className="border-t p-4">
           {verdict ? (
             <div className="bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl p-6 space-y-4">
-              {/* Header with Score */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={cn(
@@ -707,12 +683,10 @@ export function InteractiveTribunal({
                 </div>
               </div>
 
-              {/* Summary */}
               <div className="bg-background/50 rounded-lg p-4">
-                <p className="text-sm leading-relaxed">{verdict.verdict.summary}</p>
+                <p className="text-sm leading-relaxed">{formatMarkdown(verdict.verdict.summary || "")}</p>
               </div>
 
-              {/* Critical Issues */}
               {verdict.critical_issues && verdict.critical_issues.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
@@ -721,7 +695,6 @@ export function InteractiveTribunal({
                   </h4>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
                     {verdict.critical_issues.map((issue, i) => {
-                      // Handle both string and object formats
                       const issueText = typeof issue === "string" ? issue : issue.title;
                       const severity = typeof issue === "string" ? "CONCERN" : issue.severity;
                       return (
@@ -734,7 +707,7 @@ export function InteractiveTribunal({
                           )}>
                             {severity.replace("_", " ")}
                           </Badge>
-                          <span className="text-sm">{issueText}</span>
+                          <span className="text-sm">{formatMarkdown(issueText)}</span>
                         </div>
                       );
                     })}
@@ -742,13 +715,11 @@ export function InteractiveTribunal({
                 </div>
               )}
 
-              {/* Stats Row */}
               <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
                 <span>{verdict.verdict.total_concerns} concern{verdict.verdict.total_concerns !== 1 ? "s" : ""} identified</span>
                 <span>{verdict.verdict.critical_concerns} critical</span>
               </div>
 
-              {/* Blockchain & Storage Status */}
               <div className="flex items-center justify-between text-xs border-t pt-3 gap-4">
                 <div className="flex items-center gap-2">
                   {verdict.mem0_stored ? (
@@ -780,7 +751,6 @@ export function InteractiveTribunal({
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Main Voice Control - Large Central Button */}
               <div className="flex items-center justify-center gap-4">
                 <Button
                   variant={isRecording ? "destructive" : "default"}
@@ -801,7 +771,6 @@ export function InteractiveTribunal({
                 </Button>
               </div>
 
-              {/* Status Text */}
               <div className="text-center text-sm text-muted-foreground">
                 {isRecording ? (
                   <span className="text-red-500 animate-pulse">
@@ -818,7 +787,6 @@ export function InteractiveTribunal({
                 )}
               </div>
 
-              {/* Action Buttons Row */}
               <div className="flex items-center justify-between">
                 <Button
                   variant="ghost"
@@ -842,7 +810,6 @@ export function InteractiveTribunal({
                 </Button>
               </div>
 
-              {/* Optional Text Input */}
               {showTextInput && (
                 <div className="flex gap-2 pt-2">
                   <div className="flex-1 relative">

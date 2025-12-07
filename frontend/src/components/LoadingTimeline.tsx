@@ -38,37 +38,30 @@ export function LoadingTimeline({
   stages = defaultStages,
 }: LoadingTimelineProps) {
   const getStepStatus = (stepId: string, index: number): "pending" | "active" | "complete" => {
-    // If status is queued, show first step as active
     if (status === "queued") {
       return index === 0 ? "active" : "pending";
     }
-    
-    // If no current stage but running, show first step as active
+
     if (!currentStage) {
       return index === 0 && status === "running" ? "active" : "pending";
     }
-    
+
     const currentIndex = stages.findIndex((s) => s.id === currentStage);
-    
-    // Handle completion stages (e.g., "skeptic_complete")
+
     if (currentIndex < 0 && currentStage.includes("_complete")) {
       const baseStage = currentStage.replace("_complete", "");
       const baseIndex = stages.findIndex((s) => s.id === baseStage);
       if (baseIndex >= 0) {
-        // Mark the base stage and all previous as complete
         if (index <= baseIndex) return "complete";
-        // Mark the next stage as active
         if (index === baseIndex + 1) return "active";
       }
       return "pending";
     }
-    
+
     if (currentIndex < 0) {
-      // If currentStage doesn't match, default to first step active
       return index === 0 ? "active" : "pending";
     }
-    
-    // Normal progression logic
+
     if (index < currentIndex) return "complete";
     if (index === currentIndex && status === "running") return "active";
     if (index === currentIndex && status === "completed") return "complete";
@@ -80,20 +73,17 @@ export function LoadingTimeline({
     return stepStatus === "complete";
   }).length;
 
-  // Calculate progress including the active step as partial progress
   const activeStepIndex = stages.findIndex((s) => {
     const status = getStepStatus(s.id, stages.indexOf(s));
     return status === "active";
   });
-  
+
   let progress = (completedSteps / stages.length) * 100;
-  
-  // Add partial progress for active step (50% of one step)
+
   if (activeStepIndex >= 0 && status === "running") {
     progress += (1 / stages.length) * 50;
   }
-  
-  // Ensure progress doesn't exceed 100%
+
   progress = Math.min(100, progress);
 
   return (

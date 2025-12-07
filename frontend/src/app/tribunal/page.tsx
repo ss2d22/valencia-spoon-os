@@ -41,20 +41,17 @@ function TribunalContent() {
       setStatus(statusData.status);
       setCurrentStage(statusData.current_stage);
 
-      // Check if user clicked "End Debate" button
       const shouldShowVerdict = sessionStorage.getItem(`show_verdict_${sessionId}`) === "true";
       if (shouldShowVerdict) {
         setShowVerdict(true);
       }
 
-      // Navigate to debate page when ethicist completes evaluation (only if user hasn't requested verdict)
       if (statusData.current_stage === "ethicist_complete" && !hasNavigatedToDebate && !shouldShowVerdict) {
         setHasNavigatedToDebate(true);
         router.push(`/debate/${sessionId}`);
         return;
       }
 
-      // If user clicked "End Debate", load verdict data regardless of status
       if (shouldShowVerdict) {
         try {
           const [verdictData, agentData] = await Promise.all([
@@ -79,7 +76,6 @@ function TribunalContent() {
             }
           }
         } catch {
-          // Silent error handling
         }
       } else if (statusData.status === "completed" && showVerdict) {
         const [verdictData, agentData] = await Promise.all([
@@ -105,7 +101,6 @@ function TribunalContent() {
         setError(statusData.progress?.error || "Tribunal failed");
       }
     } catch {
-      // Silent error handling
     }
   }, [sessionId, hasNavigatedToDebate, showVerdict, router]);
 
@@ -115,16 +110,13 @@ function TribunalContent() {
       return;
     }
 
-    // Check if user wants to see verdict (clicked "End Debate")
     const shouldShowVerdict = sessionStorage.getItem(`show_verdict_${sessionId}`) === "true";
     if (shouldShowVerdict) {
       setShowVerdict(true);
-      // Load live transcript from sessionStorage
       try {
         const storedTranscript = sessionStorage.getItem(`live_transcript_${sessionId}`);
         if (storedTranscript) {
           const parsed = JSON.parse(storedTranscript);
-          // Convert timestamp strings back to Date objects if needed
           const processed = parsed.map((entry: any) => ({
             ...entry,
             timestamp: typeof entry.timestamp === "string" ? new Date(entry.timestamp) : entry.timestamp,
@@ -147,14 +139,12 @@ function TribunalContent() {
     return () => clearInterval(interval);
   }, [sessionId, status, pollStatus, router]);
 
-  // Load live transcript when showVerdict is true
   useEffect(() => {
     if (showVerdict && sessionId) {
       try {
         const storedTranscript = sessionStorage.getItem(`live_transcript_${sessionId}`);
         if (storedTranscript) {
           const parsed = JSON.parse(storedTranscript);
-          // Convert timestamp strings back to Date objects if needed
           const processed = parsed.map((entry: any) => ({
             ...entry,
             timestamp: typeof entry.timestamp === "string" ? new Date(entry.timestamp) : entry.timestamp,
@@ -167,7 +157,6 @@ function TribunalContent() {
     }
   }, [showVerdict, sessionId]);
 
-  // Redirect to debate if ethicist completed and haven't navigated yet (only if user hasn't requested verdict)
   useEffect(() => {
     const shouldShowVerdict = sessionStorage.getItem(`show_verdict_${sessionId}`) === "true";
     if (currentStage === "ethicist_complete" && !hasNavigatedToDebate && sessionId && !shouldShowVerdict) {

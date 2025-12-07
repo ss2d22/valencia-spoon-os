@@ -58,7 +58,6 @@ interface TranscriptEntry {
   isUser?: boolean;
 }
 
-// Mock agent responses based on user input
 const generateAgentResponse = (userMessage: string, agentName: string): string => {
   const lowerMessage = userMessage.toLowerCase();
   
@@ -119,14 +118,12 @@ export function DebateView({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // Get all 4 agents
   const allAgents = Object.keys(agentConfig);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcript]);
 
-  // Notify parent of transcript changes
   useEffect(() => {
     if (onTranscriptChange) {
       onTranscriptChange(transcript);
@@ -147,16 +144,9 @@ export function DebateView({
       };
 
       mediaRecorder.onstop = async () => {
-        // In a real implementation, this would send audio to backend for transcription
-        // For now, we'll simulate transcription with a mock message
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        
-        // Simulate transcription (in real app, send to backend)
         const mockTranscription = "I'd like to address the statistical concerns raised about my paper.";
-        
         handleUserMessage(mockTranscription);
-        
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -178,7 +168,6 @@ export function DebateView({
   const handleUserMessage = async (userMessage: string) => {
     if (!userMessage.trim() || isProcessing) return;
     
-    // Add user message to transcript
     const userEntry: TranscriptEntry = {
       speaker: "You",
       text: userMessage,
@@ -189,16 +178,12 @@ export function DebateView({
     setTranscript((prev) => [...prev, userEntry]);
     setIsProcessing(true);
     
-    // Call the callback
     onUserMessage?.(userMessage);
 
-    // Simulate agent responses (in real implementation, this would be an API call)
-    // Randomly select 1-2 agents to respond
     const respondingAgents = allAgents
       .sort(() => Math.random() - 0.5)
       .slice(0, Math.floor(Math.random() * 2) + 1);
 
-    // Add agent responses with delays to simulate thinking
     for (let i = 0; i < respondingAgents.length; i++) {
       await new Promise((resolve) => setTimeout(resolve, 1000 + i * 500));
       
@@ -215,8 +200,7 @@ export function DebateView({
       };
 
       setTranscript((prev) => [...prev, agentEntry]);
-      
-      // Clear speaking indicator after a delay
+
       setTimeout(() => {
         setCurrentSpeaker(null);
       }, 2000);
@@ -231,9 +215,7 @@ export function DebateView({
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      {/* Main grid layout */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 overflow-hidden">
-        {/* Agent panels grid - 2x2 layout */}
         <div className="lg:col-span-2 grid grid-cols-2 gap-4">
           {allAgents.map((agentName) => {
             const config = agentConfig[agentName];
@@ -283,7 +265,6 @@ export function DebateView({
           })}
         </div>
 
-        {/* Transcript panel */}
         <div className="lg:col-span-1 flex flex-col">
           <Card className="flex-1 flex flex-col overflow-hidden">
             <CardContent className="flex-1 flex flex-col p-4">
@@ -343,7 +324,6 @@ export function DebateView({
         </div>
       </div>
 
-      {/* Bottom voice control bar */}
       <div className="border-t border-border p-4 bg-muted/30">
         <div className="max-w-4xl mx-auto flex items-center justify-center">
           <Button

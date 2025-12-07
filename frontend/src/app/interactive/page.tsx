@@ -17,7 +17,6 @@ function InteractivePageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check for autostart session from home page
   useEffect(() => {
     const autostart = searchParams.get("autostart");
     if (autostart === "true") {
@@ -170,7 +169,6 @@ function InteractivePageContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* File Upload - Primary Action */}
               <div>
                 <label className="block">
                   <input
@@ -261,7 +259,6 @@ function InteractivePageContent() {
   );
 }
 
-// Loading fallback for Suspense
 function LoadingFallback() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -270,7 +267,6 @@ function LoadingFallback() {
   );
 }
 
-// Export with Suspense wrapper for useSearchParams
 export default function InteractivePage() {
   return (
     <Suspense fallback={<LoadingFallback />}>

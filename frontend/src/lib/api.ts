@@ -126,7 +126,6 @@ export async function searchVerdicts(
   return fetchAPI(`/api/verdicts/search?query=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
-// Dashboard Verdict Types
 export interface DashboardVerdict {
   session_id: string;
   memory_id?: string;
@@ -136,6 +135,51 @@ export interface DashboardVerdict {
   created_at?: string;
   memory_text?: string;
   version?: number;
+}
+
+export interface RichAgentAnalysis {
+  agent: string;
+  raw_response: string;
+  concerns: Array<{
+    title: string;
+    evidence: string;
+    severity: string;
+  }>;
+  severity: string;
+  confidence: number;
+}
+
+export interface RichDebateRound {
+  round_number: number;
+  statements: Array<{
+    agent: string;
+    text: string;
+    intensity: number;
+    was_interrupted?: boolean;
+    is_user?: boolean;
+  }>;
+}
+
+export interface RichCriticalIssue {
+  title: string;
+  severity: string;
+  agent: string;
+  description: string;
+}
+
+export interface RichVerdictData extends DashboardVerdict {
+  decision?: string;
+  verdict?: {
+    summary: string;
+    recommendation: string;
+  };
+  agent_analyses?: Record<string, RichAgentAnalysis>;
+  debate_rounds?: RichDebateRound[];
+  critical_issues?: RichCriticalIssue[];
+  total_messages?: number;
+  human_interactions?: number;
+  human_messages?: Array<{ text: string; timestamp?: string }>;
+  source?: "local_storage" | "mem0";
 }
 
 export interface PaperVersionGroup {
@@ -178,7 +222,7 @@ export async function getRecentVerdicts(
 
 export async function getVerdictBySessionId(
   sessionId: string
-): Promise<DashboardVerdict & { metadata: Record<string, unknown> }> {
+): Promise<RichVerdictData & { metadata?: Record<string, unknown> }> {
   return fetchAPI(`/api/verdicts/${sessionId}`);
 }
 
@@ -191,8 +235,6 @@ export async function verifyNeoTransaction(
 export function getAudioStreamUrl(sessionId: string): string {
   return `${API_BASE}/api/tribunal/${sessionId}/audio`;
 }
-
-// Interactive Tribunal API
 
 export interface InteractiveSession {
   session_id: string;
@@ -293,8 +335,6 @@ export async function requestInteractiveVerdict(
   });
 }
 
-// Voice API
-
 export interface VoiceAgentResponse {
   agent: string;
   agent_key: string;
@@ -367,13 +407,11 @@ export function getVoiceWebSocketUrl(sessionId: string): string {
   return `${wsBase}/api/voice/ws/${sessionId}`;
 }
 
-// Helper to convert audio blob to base64
 export async function audioToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64 = reader.result as string;
-      // Remove data URL prefix (e.g., "data:audio/webm;base64,")
       const base64Data = base64.split(",")[1];
       resolve(base64Data);
     };
@@ -382,7 +420,6 @@ export async function audioToBase64(blob: Blob): Promise<string> {
   });
 }
 
-// Helper to convert base64 to audio blob
 export function base64ToAudioBlob(base64: string, mimeType = "audio/mpeg"): Blob {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);

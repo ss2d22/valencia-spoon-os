@@ -4,8 +4,6 @@ from spoon_ai.chat import ChatBot
 
 
 class BaseTribunalAgent:
-    """Base class for tribunal agents - uses ChatBot directly for simple LLM calls."""
-
     name: str = "tribunal_agent"
     description: str = "Scientific paper review agent"
     role_name: str = "Base Agent"

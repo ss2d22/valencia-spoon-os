@@ -20,18 +20,12 @@ export interface GraphData {
   versions: Version[];
 }
 
-// Mock data for now - replace with actual API calls
 export function useGraphData(paperId?: string): { data: GraphData | null; loading: boolean; error: Error | null } {
   const [data, setData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // GET /papers/:paperId/versions
-    // GET /papers/:paperId/versions/:versionId/critiques
-    
-    // Mock data for demonstration
     const mockData: GraphData = {
       versions: [
         {
@@ -98,7 +92,6 @@ export function useGraphData(paperId?: string): { data: GraphData | null; loadin
       ],
     };
 
-    // Simulate API call
     setTimeout(() => {
       setData(mockData);
       setLoading(false);

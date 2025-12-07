@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from ...memory import TribunalMemory
 from ...storage import AIOZVerdictStorage
+from ...storage.local_storage import LocalVerdictStorage
 from ...neo import NeoReader
 
 router = APIRouter()
@@ -286,7 +287,37 @@ async def get_verdicts_grouped_by_paper(
 
 @router.get("/{session_id}")
 async def get_verdict_by_session(session_id: str) -> Dict[str, Any]:
-    """Get a specific verdict by session ID."""
+    """Get a specific verdict by session ID.
+
+    First tries local storage (for rich data with agent analyses, debate transcript).
+    Falls back to Mem0 (for summary data only).
+    """
+    # Try local storage first (has rich data)
+    try:
+        local_storage = LocalVerdictStorage()
+        local_result = await local_storage.get_verdict(session_id)
+        if local_result:
+            # Return rich data from local storage
+            return {
+                "session_id": session_id,
+                "tribunal_id": local_result.get("tribunal_id", session_id),
+                "paper_title": local_result.get("paper_title", "Untitled"),
+                "verdict_score": local_result.get("verdict_score", 0),
+                "verdict": local_result.get("verdict", {}),
+                "decision": local_result.get("decision", "UNKNOWN"),
+                # Rich data
+                "agent_analyses": local_result.get("agent_analyses", {}),
+                "debate_rounds": local_result.get("debate_rounds", []),
+                "critical_issues": local_result.get("critical_issues", []),
+                "critical_issues_count": local_result.get("critical_issues_count", 0),
+                "total_messages": local_result.get("total_messages", 0),
+                "human_interactions": local_result.get("human_interactions", 0),
+                "source": "local_storage",
+            }
+    except Exception as e:
+        print(f"[DEBUG] Local storage lookup failed: {e}")
+
+    # Fall back to Mem0 (summary only)
     try:
         memory = TribunalMemory()
         result = await memory.get_verdict_by_session(session_id)
@@ -305,6 +336,7 @@ async def get_verdict_by_session(session_id: str) -> Dict[str, Any]:
             "created_at": result.get("created_at"),
             "memory_text": result.get("memory", ""),
             "metadata": metadata,
+            "source": "mem0",
         }
     except HTTPException:
         raise
