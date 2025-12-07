@@ -1,4 +1,5 @@
 import os
+import httpx
 from typing import List, Dict, Any, Optional
 
 from mem0 import MemoryClient
@@ -13,11 +14,12 @@ MEM0_CONFIG = {
 class TribunalMemory:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or MEM0_CONFIG
-        api_key = os.getenv("MEM0_API_KEY")
-        if not api_key:
+        self.api_key = os.getenv("MEM0_API_KEY")
+        if not self.api_key:
             raise ValueError("MEM0_API_KEY not set")
-        self.client = MemoryClient(api_key=api_key)
+        self.client = MemoryClient(api_key=self.api_key)
         self.user_id = self.config.get("user_id", "adversarial_science")
+        self.base_url = "https://api.mem0.ai/v1"
 
     async def store_verdict_memory(
         self,
@@ -55,32 +57,39 @@ Tribunal ID: {verdict.get('tribunal_id', 'Unknown')}
         query: str,
         limit: int = 5
     ) -> List[Dict[str, Any]]:
-        results = self.client.search(
-            query=query,
-            user_id=self.user_id,
-            limit=limit
-        )
-        return results if results else []
+        """Search similar papers using v1 API directly."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/memories/search/",
+                    json={"query": query, "user_id": self.user_id, "limit": limit},
+                    headers={"Authorization": f"Token {self.api_key}"},
+                    timeout=30.0,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data if isinstance(data, list) else data.get("results", [])
+                else:
+                    print(f"[DEBUG] Mem0 search returned {response.status_code}")
+                    return []
+        except Exception as e:
+            print(f"[DEBUG] find_similar_papers failed: {e}")
+            return []
 
     async def find_by_issue(
         self,
         issue_type: str,
         limit: int = 10
     ) -> List[Dict[str, Any]]:
-        results = self.client.search(
-            query=f"Critical issue: {issue_type}",
-            user_id=self.user_id,
-            limit=limit
-        )
-        return results if results else []
+        """Search for papers with specific issue type using v1 API."""
+        return await self.find_similar_papers(f"Critical issue: {issue_type}", limit)
 
     async def get_low_score_papers(self, threshold: int = 50) -> List[Dict[str, Any]]:
-        results = self.client.search(
-            query=f"papers with score below {threshold} serious concerns fatal flaws",
-            user_id=self.user_id,
+        """Get low scoring papers using v1 API."""
+        return await self.find_similar_papers(
+            f"papers with score below {threshold} serious concerns fatal flaws",
             limit=20
         )
-        return results if results else []
 
     async def delete_verdict_memory(self, memory_id: str) -> bool:
         try:
@@ -115,10 +124,25 @@ Tribunal ID: {verdict.get('tribunal_id', 'Unknown')}
         }
 
     async def get_all_verdicts(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """Get all verdicts using v1 API directly (v2 API returns 400 errors)."""
         try:
-            memories = self.client.get_all(user_id=self.user_id)
-            return memories[offset:offset + limit] if memories else []
-        except Exception:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/memories/",
+                    params={"user_id": self.user_id},
+                    headers={"Authorization": f"Token {self.api_key}"},
+                    timeout=30.0,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    # Handle both list and dict responses
+                    memories = data if isinstance(data, list) else data.get("memories", data.get("results", []))
+                    return memories[offset:offset + limit] if memories else []
+                else:
+                    print(f"[DEBUG] Mem0 v1 get_all returned {response.status_code}: {response.text}")
+                    return []
+        except Exception as e:
+            print(f"[DEBUG] get_all_verdicts failed: {e}")
             return []
 
     async def get_verdicts_by_score_range(
@@ -159,12 +183,8 @@ Tribunal ID: {verdict.get('tribunal_id', 'Unknown')}
         return all_verdicts
 
     async def get_verdict_by_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        results = self.client.search(
-            query=f"Tribunal ID: {session_id}",
-            user_id=self.user_id,
-            limit=1
-        )
-
+        """Get a specific verdict by session ID using v1 API."""
+        results = await self.find_similar_papers(f"Tribunal ID: {session_id}", limit=1)
         if results and len(results) > 0:
             return results[0]
         return None

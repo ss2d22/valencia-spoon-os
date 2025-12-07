@@ -244,34 +244,23 @@ async def request_verdict(session_id: str):
     Request the tribunal to deliver a final verdict.
 
     This ends the interactive session and generates a verdict
-    based on the analyses and conversation.
+    based on the analyses and conversation. The verdict is stored
+    to Mem0 (for dashboard) and Neo blockchain (for immutability).
     """
-    from ...graph.nodes import synthesize_verdict_node
-
     state = orchestrator.get_session_state(session_id)
     if not state:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session = orchestrator.sessions[session_id]
-
-    # Build state for verdict synthesis
-    verdict_state = {
-        "paper_text": session.paper_text,
-        "paper_metadata": session.paper_metadata,
-        "skeptic_analysis": session.analyses.get("skeptic", {}),
-        "statistician_analysis": session.analyses.get("statistician", {}),
-        "methodologist_analysis": session.analyses.get("methodologist", {}),
-        "ethicist_analysis": session.analyses.get("ethicist", {}),
-        "debate_rounds": [],  # Interactive sessions don't have formal rounds
-    }
-
-    # Generate verdict
-    verdict_result = await synthesize_verdict_node(verdict_state)
-
-    session.verdict = verdict_result
+    # Use orchestrator's generate_verdict which handles:
+    # 1. Verdict generation from all analyses and conversation
+    # 2. Storage to Mem0 (long-term memory for dashboard)
+    # 3. Storage to Neo blockchain (immutable record)
+    verdict = await orchestrator.generate_verdict(session_id)
 
     return {
-        "verdict": verdict_result.get("verdict", {}),
-        "score": verdict_result.get("verdict_score", 0),
-        "critical_issues": verdict_result.get("critical_issues", [])
+        "verdict": verdict,
+        "score": verdict.get("score", 0),
+        "critical_issues": verdict.get("critical_issues", []),
+        "neo_tx_hash": verdict.get("neo_tx_hash"),
+        "mem0_stored": verdict.get("mem0_stored", False),
     }

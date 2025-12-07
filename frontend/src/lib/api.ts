@@ -126,6 +126,62 @@ export async function searchVerdicts(
   return fetchAPI(`/api/verdicts/search?query=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
+// Dashboard Verdict Types
+export interface DashboardVerdict {
+  session_id: string;
+  memory_id?: string;
+  paper_title: string;
+  verdict_score: number;
+  critical_issues_count: number;
+  created_at?: string;
+  memory_text?: string;
+  version?: number;
+}
+
+export interface PaperVersionGroup {
+  paper_title: string;
+  version_count: number;
+  latest_score: number;
+  best_score: number;
+  versions: DashboardVerdict[];
+}
+
+export interface VerdictStats {
+  total_verdicts: number;
+  average_score: number;
+  lowest_score: number;
+  highest_score: number;
+}
+
+export async function getAllVerdicts(
+  limit = 50,
+  offset = 0
+): Promise<{ verdicts: DashboardVerdict[]; count: number }> {
+  return fetchAPI(`/api/verdicts/all?limit=${limit}&offset=${offset}`);
+}
+
+export async function getVerdictsGroupedByPaper(
+  limit = 50
+): Promise<{ papers: PaperVersionGroup[]; total_papers: number; total_versions: number }> {
+  return fetchAPI(`/api/verdicts/by-paper?limit=${limit}`);
+}
+
+export async function getVerdictStats(): Promise<VerdictStats> {
+  return fetchAPI("/api/verdicts/stats");
+}
+
+export async function getRecentVerdicts(
+  limit = 10
+): Promise<{ verdicts: DashboardVerdict[]; count: number }> {
+  return fetchAPI(`/api/verdicts/recent?limit=${limit}`);
+}
+
+export async function getVerdictBySessionId(
+  sessionId: string
+): Promise<DashboardVerdict & { metadata: Record<string, unknown> }> {
+  return fetchAPI(`/api/verdicts/${sessionId}`);
+}
+
 export async function verifyNeoTransaction(
   txHash: string
 ): Promise<{ verified: boolean; tx_hash: string; block_height?: number }> {
@@ -163,18 +219,19 @@ export interface SendMessageResponse {
 
 export interface InteractiveVerdict {
   verdict: {
-    summary: string;
-    score: number;
-    severities: string[];
-    total_concerns: number;
-    critical_concerns: number;
-    debate_rounds: number;
+    decision?: string;
+    summary?: string;
+    score?: number;
+    severities?: string[];
+    total_concerns?: number;
+    critical_concerns?: number;
+    debate_rounds?: number;
   };
   score: number;
-  critical_issues: Array<{
+  critical_issues: Array<string | {
     title: string;
     severity: string;
-    evidence: string;
+    evidence?: string;
   }>;
   neo_tx_hash?: string | null;
   mem0_stored?: boolean;

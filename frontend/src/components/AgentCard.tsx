@@ -30,37 +30,32 @@ interface AgentCardProps {
 const agentConfig: Record<AgentRole, {
   name: string;
   icon: typeof Brain;
-  color: string;
-  bgColor: string;
   description: string;
+  bgColor: string;
 }> = {
   skeptic: {
     name: "The Skeptic",
     icon: AlertTriangle,
-    color: "text-orange-500",
-    bgColor: "bg-orange-500/10",
     description: "Questions everything, finds alternative explanations",
+    bgColor: "bg-black"
   },
   statistician: {
     name: "The Statistician",
     icon: BarChart3,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
     description: "Audits numbers, catches p-hacking",
+    bgColor: "bg-black"
   },
   methodologist: {
     name: "The Methodologist",
     icon: Scale,
-    color: "text-purple-500",
-    bgColor: "bg-purple-500/10",
     description: "Evaluates experimental design",
+    bgColor: "bg-black"
   },
   ethicist: {
     name: "The Ethicist",
     icon: Shield,
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
     description: "Identifies bias and conflicts",
+    bgColor: "bg-black"
   },
 };
 
@@ -91,8 +86,8 @@ export function AgentCard({ role, status, analysis, isSpeaking }: AgentCardProps
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <Avatar className={cn("h-12 w-12", config.bgColor)}>
-            <AvatarFallback className={cn("bg-transparent", config.color)}>
-              <Icon className="h-6 w-6" />
+            <AvatarFallback className="bg-transparent">
+              <Icon className="h-6 w-6 text-white" />
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">

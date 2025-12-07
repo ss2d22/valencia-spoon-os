@@ -720,19 +720,24 @@ export function InteractiveTribunal({
                     Critical Issues ({verdict.critical_issues.length})
                   </h4>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {verdict.critical_issues.map((issue, i) => (
-                      <div key={i} className="bg-background/50 rounded-lg px-3 py-2 flex items-start gap-2">
-                        <Badge variant="outline" className={cn(
-                          "text-xs shrink-0",
-                          issue.severity === "FATAL_FLAW" ? "border-red-500 text-red-500" :
-                          issue.severity === "SERIOUS_CONCERN" ? "border-orange-500 text-orange-500" :
-                          "border-yellow-500 text-yellow-500"
-                        )}>
-                          {issue.severity.replace("_", " ")}
-                        </Badge>
-                        <span className="text-sm">{issue.title}</span>
-                      </div>
-                    ))}
+                    {verdict.critical_issues.map((issue, i) => {
+                      // Handle both string and object formats
+                      const issueText = typeof issue === "string" ? issue : issue.title;
+                      const severity = typeof issue === "string" ? "CONCERN" : issue.severity;
+                      return (
+                        <div key={i} className="bg-background/50 rounded-lg px-3 py-2 flex items-start gap-2">
+                          <Badge variant="outline" className={cn(
+                            "text-xs shrink-0",
+                            severity === "FATAL_FLAW" ? "border-red-500 text-red-500" :
+                            severity === "SERIOUS_CONCERN" ? "border-orange-500 text-orange-500" :
+                            "border-yellow-500 text-yellow-500"
+                          )}>
+                            {severity.replace("_", " ")}
+                          </Badge>
+                          <span className="text-sm">{issueText}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -62,7 +62,6 @@ export function VerdictDisplay({ verdict, onPlayAudio, onDownload }: VerdictDisp
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <Gavel className="h-5 w-5" />
               Tribunal Verdict
             </CardTitle>
             <Badge variant={verdict.verdict_score >= 60 ? "success" : "destructive"}>

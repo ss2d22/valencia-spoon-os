@@ -170,3 +170,143 @@ async def get_aggregate_stats() -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/all")
+async def get_all_verdicts(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0)
+) -> Dict[str, Any]:
+    """Get all verdicts for the dashboard."""
+    try:
+        memory = TribunalMemory()
+        results = await memory.get_all_verdicts(limit=limit, offset=offset)
+
+        # Transform Mem0 results to frontend-friendly format
+        verdicts = []
+        for r in results:
+            metadata = r.get("metadata", {})
+            memory_text = r.get("memory", "")
+
+            # Parse memory text to extract details
+            lines = memory_text.split("\n")
+            title = metadata.get("paper_title", "Untitled")
+            score = metadata.get("score", 0)
+            tribunal_id = metadata.get("tribunal_id", r.get("id", ""))
+            critical_count = metadata.get("critical_issue_count", 0)
+
+            verdicts.append({
+                "session_id": tribunal_id,
+                "memory_id": r.get("id"),
+                "paper_title": title,
+                "verdict_score": score,
+                "critical_issues_count": critical_count,
+                "created_at": r.get("created_at"),
+                "memory_text": memory_text,
+            })
+
+        return {
+            "verdicts": verdicts,
+            "count": len(verdicts),
+            "limit": limit,
+            "offset": offset,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/by-paper")
+async def get_verdicts_grouped_by_paper(
+    limit: int = Query(default=50, ge=1, le=200)
+) -> Dict[str, Any]:
+    """
+    Get verdicts grouped by paper title for version history.
+    Groups tribunals by paper title to show v1, v2, v3, etc.
+    """
+    try:
+        memory = TribunalMemory()
+        results = await memory.get_all_verdicts(limit=limit)
+
+        # Group by paper title (normalized)
+        paper_groups: Dict[str, List[Dict[str, Any]]] = {}
+
+        for r in results:
+            metadata = r.get("metadata", {})
+            title = metadata.get("paper_title", "Untitled").strip()
+            # Normalize title for grouping (lowercase, remove extra spaces)
+            normalized_title = " ".join(title.lower().split())
+
+            if normalized_title not in paper_groups:
+                paper_groups[normalized_title] = []
+
+            paper_groups[normalized_title].append({
+                "session_id": metadata.get("tribunal_id", r.get("id", "")),
+                "memory_id": r.get("id"),
+                "paper_title": title,
+                "verdict_score": metadata.get("score", 0),
+                "critical_issues_count": metadata.get("critical_issue_count", 0),
+                "created_at": r.get("created_at"),
+            })
+
+        # Sort versions within each paper by created_at (oldest first = v1)
+        papers = []
+        for normalized_title, versions in paper_groups.items():
+            # Sort by created_at if available, otherwise by score to infer version order
+            sorted_versions = sorted(
+                versions,
+                key=lambda x: x.get("created_at") or "",
+            )
+
+            # Add version numbers
+            for i, version in enumerate(sorted_versions):
+                version["version"] = i + 1
+
+            papers.append({
+                "paper_title": versions[0]["paper_title"],  # Use original title
+                "version_count": len(versions),
+                "latest_score": sorted_versions[-1]["verdict_score"] if sorted_versions else 0,
+                "best_score": max(v["verdict_score"] for v in versions),
+                "versions": sorted_versions,
+            })
+
+        # Sort papers by latest activity
+        papers.sort(
+            key=lambda x: x["versions"][-1].get("created_at") or "" if x["versions"] else "",
+            reverse=True
+        )
+
+        return {
+            "papers": papers,
+            "total_papers": len(papers),
+            "total_versions": sum(len(p["versions"]) for p in papers),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{session_id}")
+async def get_verdict_by_session(session_id: str) -> Dict[str, Any]:
+    """Get a specific verdict by session ID."""
+    try:
+        memory = TribunalMemory()
+        result = await memory.get_verdict_by_session(session_id)
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Verdict not found")
+
+        metadata = result.get("metadata", {})
+
+        return {
+            "session_id": session_id,
+            "memory_id": result.get("id"),
+            "paper_title": metadata.get("paper_title", "Untitled"),
+            "verdict_score": metadata.get("score", 0),
+            "critical_issues_count": metadata.get("critical_issue_count", 0),
+            "created_at": result.get("created_at"),
+            "memory_text": result.get("memory", ""),
+            "metadata": metadata,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -2,6 +2,13 @@ import asyncio
 import uuid
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env file from backend directory (override=True to replace stale env vars)
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(env_path, override=True)
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware

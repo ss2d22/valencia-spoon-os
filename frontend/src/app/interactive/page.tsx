@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { startInteractiveSession, startInteractiveSessionPdf, type InteractiveSe
 import { Gavel, ArrowLeft, Loader2, MessageCircle, Upload, FileText, Mic } from "lucide-react";
 import Link from "next/link";
 
-export default function InteractivePage() {
+function InteractivePageContent() {
   const searchParams = useSearchParams();
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
@@ -258,5 +258,23 @@ export default function InteractivePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
+
+// Export with Suspense wrapper for useSearchParams
+export default function InteractivePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <InteractivePageContent />
+    </Suspense>
   );
 }

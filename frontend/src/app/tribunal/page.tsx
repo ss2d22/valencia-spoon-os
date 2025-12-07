@@ -3,19 +3,17 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { TribunalPanel } from "@/components/TribunalPanel";
-import { VerdictDisplay } from "@/components/VerdictDisplay";
-import { DebatePlayer } from "@/components/DebatePlayer";
+import { LoadingTimeline } from "@/components/LoadingTimeline";
+import { VerdictSummary } from "@/components/VerdictSummary";
 import {
   getTribunalStatus,
   getVerdict,
-  getDebateTranscript,
   getAgentAnalyses,
   getAudioUrl,
   getAudioStreamUrl,
+  type Verdict,
+  type AgentAnalysis,
 } from "@/lib/api";
-import type { Verdict, DebateRound, AgentAnalysis } from "@/lib/api";
-import type { AgentRole, AgentStatus } from "@/components/AgentCard";
 import { Gavel, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -24,16 +22,16 @@ function TribunalContent() {
   const router = useRouter();
   const sessionId = searchParams.get("session");
 
-  const [status, setStatus] = useState<"queued" | "running" | "completed" | "failed">("queued");
-  const [currentStage, setCurrentStage] = useState<string>();
+  const [status, setStatus] = useState<"queued" | "running" | "completed" | "failed">("running");
+  const [currentStage, setCurrentStage] = useState<string | undefined>("upload");
   const [verdict, setVerdict] = useState<Verdict | null>(null);
-  const [debateRounds, setDebateRounds] = useState<DebateRound[]>([]);
+  const [liveTranscript, setLiveTranscript] = useState<any[]>([]);
   const [audioUrl, setAudioUrl] = useState<string>();
-  const [agents, setAgents] = useState<Record<string, {
-    status: AgentStatus;
-    analysis?: AgentAnalysis;
-  }>>({});
+  const [agents, setAgents] = useState<Record<string, AgentAnalysis>>({});
   const [error, setError] = useState<string | null>(null);
+
+  const [hasNavigatedToDebate, setHasNavigatedToDebate] = useState(false);
+  const [showVerdict, setShowVerdict] = useState(false);
 
   const pollStatus = useCallback(async () => {
     if (!sessionId) return;
@@ -41,26 +39,61 @@ function TribunalContent() {
     try {
       const statusData = await getTribunalStatus(sessionId);
       setStatus(statusData.status);
-      setCurrentStage(statusData.current_stage || undefined);
+      setCurrentStage(statusData.current_stage);
 
-      if (statusData.status === "completed") {
-        const [verdictData, debateData, agentData] = await Promise.all([
+      // Check if user clicked "End Debate" button
+      const shouldShowVerdict = sessionStorage.getItem(`show_verdict_${sessionId}`) === "true";
+      if (shouldShowVerdict) {
+        setShowVerdict(true);
+      }
+
+      // Navigate to debate page when ethicist completes evaluation (only if user hasn't requested verdict)
+      if (statusData.current_stage === "ethicist_complete" && !hasNavigatedToDebate && !shouldShowVerdict) {
+        setHasNavigatedToDebate(true);
+        router.push(`/debate/${sessionId}`);
+        return;
+      }
+
+      // If user clicked "End Debate", load verdict data regardless of status
+      if (shouldShowVerdict) {
+        try {
+          const [verdictData, agentData] = await Promise.all([
+            getVerdict(sessionId).catch(() => null),
+            getAgentAnalyses(sessionId).catch(() => ({ agents: {} })),
+          ]);
+
+          if (verdictData) {
+            setVerdict(verdictData);
+
+            const agentMap: Record<string, AgentAnalysis> = {};
+            for (const [role, analysis] of Object.entries(agentData.agents)) {
+              agentMap[role] = analysis as AgentAnalysis;
+            }
+            setAgents(agentMap);
+
+            try {
+              const audio = await getAudioUrl(sessionId);
+              setAudioUrl(audio.audio_url);
+            } catch {
+              setAudioUrl(getAudioStreamUrl(sessionId));
+            }
+          }
+        } catch {
+          // Silent error handling
+        }
+      } else if (statusData.status === "completed" && showVerdict) {
+        const [verdictData, agentData] = await Promise.all([
           getVerdict(sessionId),
-          getDebateTranscript(sessionId).catch(() => ({ debate_rounds: [], total_rounds: 0 })),
           getAgentAnalyses(sessionId).catch(() => ({ agents: {} })),
         ]);
 
         setVerdict(verdictData);
-        setDebateRounds(debateData.debate_rounds);
 
-        const agentStatuses: Record<string, { status: AgentStatus; analysis?: AgentAnalysis }> = {};
+        const agentMap: Record<string, AgentAnalysis> = {};
         for (const [role, analysis] of Object.entries(agentData.agents)) {
-          agentStatuses[role] = {
-            status: "complete",
-            analysis: analysis as AgentAnalysis,
-          };
+          agentMap[role] = analysis as AgentAnalysis;
         }
-        setAgents(agentStatuses);
+        setAgents(agentMap);
 
         try {
           const audio = await getAudioUrl(sessionId);
@@ -72,13 +105,35 @@ function TribunalContent() {
         setError(statusData.progress?.error || "Tribunal failed");
       }
     } catch {
+      // Silent error handling
     }
-  }, [sessionId]);
+  }, [sessionId, hasNavigatedToDebate, showVerdict, router]);
 
   useEffect(() => {
     if (!sessionId) {
       router.push("/");
       return;
+    }
+
+    // Check if user wants to see verdict (clicked "End Debate")
+    const shouldShowVerdict = sessionStorage.getItem(`show_verdict_${sessionId}`) === "true";
+    if (shouldShowVerdict) {
+      setShowVerdict(true);
+      // Load live transcript from sessionStorage
+      try {
+        const storedTranscript = sessionStorage.getItem(`live_transcript_${sessionId}`);
+        if (storedTranscript) {
+          const parsed = JSON.parse(storedTranscript);
+          // Convert timestamp strings back to Date objects if needed
+          const processed = parsed.map((entry: any) => ({
+            ...entry,
+            timestamp: typeof entry.timestamp === "string" ? new Date(entry.timestamp) : entry.timestamp,
+          }));
+          setLiveTranscript(processed);
+        }
+      } catch (error) {
+        console.error("Error loading transcript in initial useEffect:", error);
+      }
     }
 
     pollStatus();
@@ -91,6 +146,35 @@ function TribunalContent() {
 
     return () => clearInterval(interval);
   }, [sessionId, status, pollStatus, router]);
+
+  // Load live transcript when showVerdict is true
+  useEffect(() => {
+    if (showVerdict && sessionId) {
+      try {
+        const storedTranscript = sessionStorage.getItem(`live_transcript_${sessionId}`);
+        if (storedTranscript) {
+          const parsed = JSON.parse(storedTranscript);
+          // Convert timestamp strings back to Date objects if needed
+          const processed = parsed.map((entry: any) => ({
+            ...entry,
+            timestamp: typeof entry.timestamp === "string" ? new Date(entry.timestamp) : entry.timestamp,
+          }));
+          setLiveTranscript(processed);
+        }
+      } catch (error) {
+        console.error("Error loading transcript:", error);
+      }
+    }
+  }, [showVerdict, sessionId]);
+
+  // Redirect to debate if ethicist completed and haven't navigated yet (only if user hasn't requested verdict)
+  useEffect(() => {
+    const shouldShowVerdict = sessionStorage.getItem(`show_verdict_${sessionId}`) === "true";
+    if (currentStage === "ethicist_complete" && !hasNavigatedToDebate && sessionId && !shouldShowVerdict) {
+      setHasNavigatedToDebate(true);
+      router.push(`/debate/${sessionId}`);
+    }
+  }, [currentStage, hasNavigatedToDebate, sessionId, router]);
 
   if (!sessionId) {
     return (
@@ -111,10 +195,6 @@ function TribunalContent() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
-              <div className="flex items-center gap-2">
-                <Gavel className="h-6 w-6 text-primary" />
-                <span className="text-xl font-bold">Tribunal Session</span>
-              </div>
             </div>
           </div>
         </div>
@@ -129,23 +209,24 @@ function TribunalContent() {
             </div>
           )}
 
-          {status !== "completed" ? (
-            <TribunalPanel
-              sessionId={sessionId}
-              status={status}
+          {!showVerdict ? (
+            <LoadingTimeline
               currentStage={currentStage}
+              status={status}
+            />
+          ) : verdict ? (
+            <VerdictSummary
+              verdict={verdict}
+              liveTranscript={liveTranscript}
+              audioUrl={audioUrl}
               agents={agents}
+              sessionId={sessionId}
             />
           ) : (
-            <div className="grid lg:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                {verdict && <VerdictDisplay verdict={verdict} />}
-              </div>
-              <div className="space-y-6">
-                <DebatePlayer
-                  audioUrl={audioUrl}
-                  rounds={debateRounds}
-                />
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                <p className="text-muted-foreground">Loading verdict...</p>
               </div>
             </div>
           )}
